@@ -10,13 +10,14 @@ class SelfAttention(nn.Module):
         self.in_proj = nn.Linear(embed_dim, 3 * embed_dim, bias=in_proj_bias)
         self.out_proj = nn.Linear(embed_dim, embed_dim, bias=out_proj_bias)
         self.n_heads = n_heads
+        assert embed_dim % n_heads == 0, "embed_dim must be divisible by n_heads"
         self.head_dim = embed_dim // n_heads
 
-    def forward(self, x, causal_mask=False):
+    def forward(self, x: torch.Tensor, causal_mask=False) -> torch.Tensor:
         # x: (B,H*W,C)
 
         input_shape = x.shape
-        b, seq_len, embed_dim = input_shape
+        b, seq_len, _ = input_shape
         interim_shape = (b, seq_len, self.n_heads, self.head_dim)
 
         x = self.in_proj(x)
