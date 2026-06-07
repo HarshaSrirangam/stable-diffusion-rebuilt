@@ -16,3 +16,5 @@ data/
 
 # other
 .DS_Store
+**/.ruff_cache/
+scripts/
