@@ -13,8 +13,8 @@ wheels/
 data/
 *.pt
 *.ckpt
+*.safetensors
 
 # other
 .DS_Store
 **/.ruff_cache/
-scripts/

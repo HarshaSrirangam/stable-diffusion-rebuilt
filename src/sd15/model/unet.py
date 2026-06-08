@@ -323,12 +323,13 @@ class UNet(nn.Module):
         # bottleneck
         x = self.bottleneck_blocks(x, context, time)
 
-        # decoder
+        # up
         for up in self.up_blocks:
             skip = skips[-1]
             skips.pop(-1)
             x = up(torch.cat((x, skip), dim=1), context, time)
 
+        # final projection
         for module in self.proj_final:
             x = module(x)
 
