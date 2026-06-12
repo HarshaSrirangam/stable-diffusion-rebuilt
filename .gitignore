@@ -15,6 +15,11 @@ data/
 *.ckpt
 *.safetensors
 
-# other
+# caches etc
 .DS_Store
 **/.ruff_cache/
+*.egg-info/
+
+# other
+notebooks/probe_state_dict.ipynb
+scripts/lint.sh
