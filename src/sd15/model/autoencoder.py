@@ -175,7 +175,7 @@ class Decoder(nn.Module):
         return x
 
 
-class AutoEncoder(nn.Module):
+class Autoencoder(nn.Module):
     """VAE for image encoding/decoding"""
 
     def __init__(self):
