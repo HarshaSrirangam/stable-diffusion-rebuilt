@@ -2,10 +2,8 @@ import urllib.request
 from pathlib import Path
 
 FILES = {
-    "data/tokenizer/vocab.json": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/tokenizer/vocab.json",
-    "data/tokenizer/merges.txt": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/tokenizer/merges.txt",
-    "data/weights/v1-5-pruned-emaonly.ckpt": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.ckpt",
-    "data/weights/v1-5-pruned.ckpt": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned.ckpt",
+    "data/weights/v1-5-pruned-emaonly.safetensors": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
+    "data/weights/v1-5-pruned.safetensors": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned.safetensors",
 }
 
 for path, url in FILES.items():
