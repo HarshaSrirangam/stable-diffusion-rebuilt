@@ -4,12 +4,10 @@ import torch
 class DDPM:
     def __init__(
         self,
-        generator: torch.Generator,
         n_step_train=1000,
         beta_start: float = 0.00085,
         beta_end: float = 0.0120,
     ):
-        self.generator = generator
 
         self.betas = (
             torch.linspace(
@@ -26,7 +24,8 @@ class DDPM:
     def q_sample(
         self,
         latents: torch.Tensor,
-        timesteps: torch.Tensor
+        timesteps: torch.Tensor,
+        generator: torch.Generator
     ) -> torch.Tensor:
         """Adds Gaussian noise to latent image at given timestep using
         formula 4 of the DDPM paper.
@@ -50,7 +49,7 @@ class DDPM:
 
         noise = torch.randn(
             latents.shape,
-            generator=self.generator,
+            generator=generator,
             device=latents.device,
             dtype=latents.dtype,
         )
@@ -62,7 +61,8 @@ class DDPM:
         latent: torch.Tensor,
         noise_pred: torch.Tensor,
         t: int,
-        t_prev: int
+        t_prev: int,
+        generator: torch.Generator
     ) -> torch.Tensor:
         """
         Samples the previous latent using predicted noise at timestep t via
@@ -107,7 +107,7 @@ class DDPM:
 
         noise = torch.randn(
             latent.shape,
-            generator=self.generator,
+            generator=generator,
             device=latent.device,
             dtype=latent.dtype,
         )

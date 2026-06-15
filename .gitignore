@@ -22,4 +22,5 @@ data/
 
 # other
 notebooks/probe_state_dict.ipynb
+notebooks/tokenizer_test.ipynb
 scripts/lint.sh

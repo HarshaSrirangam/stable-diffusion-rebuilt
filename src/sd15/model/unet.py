@@ -35,7 +35,7 @@ class TimeEmbedding(nn.Module):
 
     def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
         """
-        time: (B,)
+        timesteps: (B,)
 
         Returns: (B, 1280)
         """
