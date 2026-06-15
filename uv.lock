@@ -1954,9 +1954,9 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "accelerate" },
-    { name = "ipykernel" },
     { name = "matplotlib" },
     { name = "numpy" },
+    { name = "pyyaml" },
     { name = "safetensors" },
     { name = "torch" },
     { name = "tqdm" },
@@ -1967,6 +1967,7 @@ dependencies = [
 dev = [
     { name = "black" },
     { name = "diffusers" },
+    { name = "ipykernel" },
     { name = "isort" },
     { name = "ruff" },
     { name = "stablediffusion-from-scratch" },
@@ -1975,9 +1976,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "accelerate", specifier = ">=1.14.0" },
-    { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "matplotlib", specifier = ">=3.10.9" },
     { name = "numpy", specifier = ">=2.4.6" },
+    { name = "pyyaml" },
     { name = "safetensors", specifier = ">=0.8.0" },
     { name = "torch", specifier = ">=2.12.0" },
     { name = "tqdm", specifier = ">=4.67.3" },
@@ -1988,6 +1989,7 @@ requires-dist = [
 dev = [
     { name = "black", specifier = ">=26.5.1" },
     { name = "diffusers", specifier = ">=0.38.0" },
+    { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "isort", specifier = ">=8.0.1" },
     { name = "ruff", specifier = ">=0.15.16" },
     { name = "stablediffusion-from-scratch", editable = "." },

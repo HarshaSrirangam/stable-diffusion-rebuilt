@@ -1,0 +1,8 @@
+ckpt_path: data/weights/v1-5-pruned-emaonly.safetensors
+device: cuda # for colab
+idle_device: cpu
+n_step_train: 1000
+n_step_inf: 50
+guidance_scale: 7.5
+seed: 42
+negative_prompt: ""

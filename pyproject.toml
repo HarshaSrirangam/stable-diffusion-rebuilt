@@ -6,13 +6,13 @@ readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
     "accelerate>=1.14.0",
-    "ipykernel>=7.3.0",
     "matplotlib>=3.10.9",
     "numpy>=2.4.6",
     "safetensors>=0.8.0",
     "torch>=2.12.0",
     "tqdm>=4.67.3",
-    "transformers>=5.12.0"
+    "transformers>=5.12.0",
+    "pyyaml"
 ]
 
 [build-system]
@@ -28,6 +28,7 @@ dev = [
     "isort>=8.0.1",
     "ruff>=0.15.16",
     "stablediffusion-from-scratch",
+    "ipykernel>=7.3.0",
     "diffusers>=0.38.0",
 ]
 
