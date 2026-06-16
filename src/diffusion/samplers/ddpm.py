@@ -90,9 +90,8 @@ class DDPM:
         # At this point, timesteps is a tensor of shape (B,), each entry being one latent's corresponding timestep to add noise to
 
         # alpha_bar_ts becomes a tensor of shape (B,) since its indexed by timesteps
-        alpha_bar_ts = (self.alpha_bars[timesteps]).to(
-            device=latents.device, dtype=latents.dtype
-        )
+        alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype)
+        alpha_bar_ts = (alpha_bars[timesteps])
         #alpha_bar_ts = alpha_bar_ts.flatten()
 
         # (B,) -> (B, 1, 1, 1)
@@ -137,16 +136,14 @@ class DDPM:
         # By now, t and t_prev are shape (B,)
 
         # (B,)
-        alpha_bar_t = self.alpha_bars[t].to(device=latents.device, dtype=latents.dtype)
+        alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype)
+        alpha_bar_t = alpha_bars[t]
         # alpha_bar_t_prev is 1 for final timesteps, so default to 1
         alpha_bar_t_prev = torch.ones_like(alpha_bar_t)
 
         valid_prev = t_prev >= 0
         if valid_prev.any():
-            alpha_bar_t_prev[valid_prev] = self.alpha_bars[t_prev[valid_prev]].to(
-                device=latents.device,
-                dtype=latents.dtype,
-            )
+            alpha_bar_t_prev[valid_prev] = alpha_bars[t_prev[valid_prev]]
 
         # by now, alpha_bar_t_prev is:
             # shape (B,)
