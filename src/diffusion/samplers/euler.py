@@ -1,7 +1,7 @@
-"""Oiler sampler"""
 import torch
-
+# coming soon...
 class Euler:
+    """Oiler sampler"""
     def __init__(self):
         self.init_noise_scale = torch.tensor(1.0)
 

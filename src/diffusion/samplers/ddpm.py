@@ -2,6 +2,11 @@ import torch
 
 
 class DDPM:
+    """
+    DDPM sampler. Based on: 
+    Ho et al., "Denoising Diffusion Probabilistic Models"
+    https://arxiv.org/abs/2006.11239
+    """
     def __init__(
         self,
         n_step_train=1000,
@@ -40,15 +45,15 @@ class DDPM:
             dtype=torch.long
         )
         # one sampler per inference method call
-        # so timesteps can be indexed directly since its account for n_step_inf
+        # so timesteps can be indexed directly since it accounts for n_step_inf
         self.timesteps = self.full_timesteps
 
-    def set_strength(self, strength: float) -> None:
-        """Modifies self.timesteps accordingly"""
+    def set_timesteps(self, strength: float) -> None:
+        """Modifies timesteps according img2img inference strength."""
         if not 0.0 <= strength <= 1:
             raise ValueError("strength must be between 0 and 1")
         
-        # [999, 979, 959, ... 19] -> [979, 959, ... 19]
+        # something like [999, 979, 959, ... 19] -> [979, 959, ... 19]
         num_steps = int(strength * len(self.full_timesteps))
         start_idx = len(self.full_timesteps) - num_steps
         self.timesteps = self.full_timesteps[start_idx:] 
@@ -59,7 +64,8 @@ class DDPM:
         noise: torch.Tensor,
         timesteps: torch.Tensor = None
     ) -> torch.Tensor:
-        """Adds Gaussian noise to latent at given timestep using
+        """
+        Adds Gaussian noise to latent at given timestep using
         formula 4 of the DDPM paper.
 
         Args:
@@ -71,50 +77,47 @@ class DDPM:
             (B, 4, 64, 64)
         """
         if timesteps is None:
-            # assumes we set strength prior to this, meaning strength was 0 and we just return latent
+            # return latent if strength is 0
             if len(self.timesteps) == 0:
                 return latents
-            # turn all samples in batch to pure noise
-            # turn timesteps into tensor of shape (B,) 
-            timesteps = torch.full( # why not just use full like to be consistent with step()?
-                size=(latents.shape[0],), # size must be a tuple
-                fill_value=int(self.timesteps[0].item()), # not necessarily pure noise, just max noise defined by self.timeteps
+            # otherwise pure noise
+            # timesteps -> (B,) 
+            timesteps = torch.full( 
+                size=(latents.shape[0],), # (B,)
+                fill_value=int(self.timesteps[0].item()),
                 device=latents.device,
                 dtype=torch.long
             )
         else:
-            timesteps = torch.tensor(timesteps, device=latents.device, dtype=torch.long) # incase input isnt a tensor
-            if timesteps.ndim == 0: # turn into shape (B,)
-                timesteps = timesteps.expand(latents.shape[0])
+            timesteps = torch.as_tensor(timesteps, device=latents.device, dtype=torch.long) 
+            if timesteps.ndim == 0: 
+                timesteps = timesteps.expand(latents.shape[0]) # (B,)
 
-        # At this point, timesteps is a tensor of shape (B,), each entry being one latent's corresponding timestep to add noise to
-
-        # alpha_bar_ts becomes a tensor of shape (B,) since its indexed by timesteps
+        # alpha_bar_ts -> (B,)
         alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype)
         alpha_bar_ts = (alpha_bars[timesteps])
-        #alpha_bar_ts = alpha_bar_ts.flatten()
 
-        # (B,) -> (B, 1, 1, 1)
+        # (B,) -> (B, 1, 1, 1) for broadcasting
         while len(alpha_bar_ts.shape) < len(latents.shape):
             alpha_bar_ts = alpha_bar_ts.unsqueeze(-1)
 
-        # returns noisified latets of shape (B, 4, 64, 64)
         return (alpha_bar_ts ** 0.5) * latents + ((1 - alpha_bar_ts) ** 0.5) * noise
     
     def step(
         self,
         noise_pred: torch.Tensor,
-        timestep: torch.Tensor | int, # bad # timestep is shared
-        prev_timestep: torch.Tensor | int | None, # bad
+        timestep: torch.Tensor | int, # timestep is shared
+        prev_timestep: torch.Tensor | int | None,
         latents: torch.Tensor,
         generator: torch.Generator,
     ) -> torch.Tensor:
         """
         Samples the previous latent using predicted noise at timestep t via
-        formula 7 and 15 of DDPM paper.
+        formulas 6, 7, and 15 of DDPM paper. Supports batched inference but each
+        sample must be at the same timestep.
 
         Args:
-            latent: (B, 4, 64, 64)
+            latents: (B, 4, 64, 64)
             noise_pred: (B, 4, 64, 64)
             timestep: current timestep
             prev_timestep: previous timestep
@@ -122,64 +125,51 @@ class DDPM:
         Returns:
             (B, 4, 64, 64)
         """
-        t = torch.tensor(timestep, device=latents.device, dtype=torch.long)
+        t = torch.as_tensor(timestep, device=latents.device, dtype=torch.long)
         if t.ndim == 0:
             t = t.expand(latents.shape[0]) # int -> (B,)
 
         if prev_timestep is None:
             t_prev = torch.full_like(t, -1)
         else:
-            t_prev = torch.tensor(prev_timestep, device=latents.device, dtype=torch.long)
+            t_prev = torch.as_tensor(prev_timestep, device=latents.device, dtype=torch.long)
             if t_prev.ndim == 0:
                 t_prev = t_prev.expand(latents.shape[0]) # int -> (B,)
 
-        # By now, t and t_prev are shape (B,)
-
-        # (B,)
-        alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype)
+        alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype) # -> (B,)
         alpha_bar_t = alpha_bars[t]
-        # alpha_bar_t_prev is 1 for final timesteps, so default to 1
+        # alpha_bar_t_prev is 1 for final timestep, so default to 1
         alpha_bar_t_prev = torch.ones_like(alpha_bar_t)
 
         valid_prev = t_prev >= 0
         if valid_prev.any():
             alpha_bar_t_prev[valid_prev] = alpha_bars[t_prev[valid_prev]]
 
-        # by now, alpha_bar_t_prev is:
-            # shape (B,)
-            # looks something like [some alpha, some alpha, 1, some alpha, 1, 1 ...]
-            # assuming prev_timesteps arg looks like [valid prev, valid prev, None or negative number???]
-
+        # (B,) -> (B, 1, 1, 1)
         while len(alpha_bar_t.shape) < len(latents.shape):
             alpha_bar_t = alpha_bar_t.unsqueeze(-1)
             alpha_bar_t_prev = alpha_bar_t_prev.unsqueeze(-1)
 
-        # by now alpha_bar_t and alpha_bar_t prev are (B, 1, 1, 1), now alpha_t is as well
         alpha_t = alpha_bar_t / alpha_bar_t_prev
-
         x0_pred = (latents - ((1.0 - alpha_bar_t) ** 0.5) * noise_pred) / (alpha_bar_t**0.5)
 
         coeff_x0 = (alpha_bar_t_prev**0.5) * (1.0 - alpha_t) / (1.0 - alpha_bar_t)
         coeff_xt = (alpha_t**0.5) * (1.0 - alpha_bar_t_prev) / (1.0 - alpha_bar_t)
-        mean = coeff_x0 * x0_pred + coeff_xt * latents
+        mean = coeff_x0 * x0_pred + coeff_xt * latents # (B, 4, 64, 64)
 
-        # by now mean is of shape (B, 4, 64, 64)
         noise = torch.randn(
-            latents.shape,
+            latents.shape, # (B, 4, 64, 64)
             generator=generator,
             device=latents.device,
             dtype=latents.dtype,
         )
-        # noise is of shape (B, 4, 64, 64)
-
-        variance = ((1.0 - alpha_bar_t_prev) / (1.0 - alpha_bar_t)) * (1.0 - alpha_t)
-        # variance is of shape (B, 1, 1, 1)
+        variance = ((1.0 - alpha_bar_t_prev) / (1.0 - alpha_bar_t)) * (1.0 - alpha_t) # (B, 1, 1, 1)
         sample = mean + noise * (variance.clamp(min=1e-20) ** 0.5)
 
+        # no stochasticity for final timestep transition
         final_mask = (t_prev < 0)
+        # (B,) -> (B, 1, 1, 1)
         while final_mask.ndim < latents.ndim:
             final_mask = final_mask.unsqueeze(-1)
 
-        # final_mask: (B, 1, 1, 1)
-        # if it was last timestep return only mean no stochasticity/sampling
         return torch.where(final_mask, mean, sample)

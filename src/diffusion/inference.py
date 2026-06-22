@@ -188,6 +188,7 @@ class InferencePipeline:
         # Denoise latent
         latents = torch.randn((1, 4, 64, 64), generator=generator, device=self.device)
         sampler = self._make_sampler(sampler_name, n_step_inf)
+        sampler.set_timesteps(1.0)
         if isinstance(sampler, Euler):
             latents *= sampler.init_noise_scale.to(device=latents.device, dtype=latents.dtype)
 
@@ -262,7 +263,7 @@ class InferencePipeline:
 
         # Denoise latent
         sampler = self._make_sampler(sampler_name, n_step_inf)
-        sampler.set_strength(strength)
+        sampler.set_timesteps(strength)
 
         if len(sampler.timesteps) > 0:
             noise = torch.randn(latents.shape, generator=generator, device=latents.device)
