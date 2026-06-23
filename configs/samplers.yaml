@@ -1,0 +1,8 @@
+ddpm:
+  beta_start: 0.00085
+  beta_end: 0.0120
+
+ddim:
+  eta: 0.0
+  beta_start: 0.00085
+  beta_end: 0.0120

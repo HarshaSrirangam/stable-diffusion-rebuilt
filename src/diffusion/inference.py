@@ -1,23 +1,42 @@
 import numpy as np
 import torch
 from transformers import CLIPTokenizer
+from dataclasses import dataclass
 
 from diffusion.convert_weights import load_all
 from diffusion.samplers.ddpm import DDPM
 from diffusion.samplers.ddim import DDIM
-from diffusion.samplers.euler import Euler
-from diffusion.model.autoencoder import Autoencoder
-from diffusion.model.clip import CLIP
-from diffusion.model.unet import UNet
+from diffusion.models.autoencoder import Autoencoder
+from diffusion.models.clip import CLIP
+from diffusion.models.unet import UNet
+
+
+@dataclass
+class SamplerConfig:
+    n_step_inf: int = 50
+    beta_start: float = 0.00085
+    beta_end: float = 0.0120
+
+
+@dataclass
+class DDPMConfig(SamplerConfig):
+    # no additional fields
+    pass
+
+
+@dataclass
+class DDIMConfig(SamplerConfig):
+    eta: float = 0.0
 
 
 class InferencePipeline:
+    """Main inference class."""
     def __init__(
         self,
         ckpt_path,
         device: torch.device | str,
         idle_device: torch.device | str,
-        n_step_train: int = 1000
+        n_step_train: int = 1000 # for sampler beta scheduler
     ):
         self.device = device
         self.idle_device = idle_device
@@ -30,25 +49,26 @@ class InferencePipeline:
 
         load_all(ckpt_path, vae=self.vae, clip=self.clip, unet=self.unet)
 
-        self.sampler_names = {
-            "ddpm": DDPM,
-            "ddim": DDIM,
-            "euler": Euler
-        }
-
     def _make_generator(self, seed: int, device: torch.device | str) -> torch.Generator:
         generator = torch.Generator(device=device)
         generator.manual_seed(seed)
         return generator
     
-    def _make_sampler(self, sampler_name: str, n_step_inf):
-        if sampler_name not in self.sampler_names:
-            raise ValueError("Unknown sampler")
-        return self.sampler_names[sampler_name](
-            n_step_train=self.n_step_train,
-            n_step_inf=n_step_inf
-        )
-
+    def _make_sampler(self, sampler_config: SamplerConfig):
+        common_args = {
+            "n_step_train": self.n_step_train,
+            "n_step_inf": sampler_config.n_step_inf,
+            "beta_start": sampler_config.beta_start,
+            "beta_end": sampler_config.beta_end
+        }
+        
+        if isinstance(sampler_config, DDPMConfig):
+            return DDPM(**common_args)
+        elif isinstance(sampler_config, DDIMConfig):
+            return DDIM(**common_args, eta=sampler_config.eta)
+        else:
+            raise TypeError("Unknown sampler config")
+        
     def _load_model(self, model: torch.nn.Module) -> None:
         model.to(device=self.device)
         model.eval()
@@ -118,13 +138,14 @@ class InferencePipeline:
             else:
                 prev_timestep = None # or -1?
 
-            if isinstance(sampler, Euler):
-                latent_input=sampler.scale_model_input(
-                    latents=latents,
-                    timestep=timestep
-                )
-            else: 
-                latent_input = latents # for DDPM and DDIM
+            #if isinstance(sampler, Euler):
+                #latent_input=sampler.scale_model_input(
+                    #latents=latents,
+                    #timestep=timestep
+                #)
+            #else: 
+                #latent_input = latents # for DDPM and DDIM
+            latent_input = latents
 
             # UNet time input
             time_input = timestep.to(device=self.device).reshape(1) # .reshape(1) ??
@@ -167,9 +188,8 @@ class InferencePipeline:
         prompt: str = "",
         negative_prompt: str = "",
         guidance_scale: float = 7.5,
-        n_step_inf: int = 50,
         seed: int = 42,
-        sampler_name: str = "ddpm"
+        sampler_config: SamplerConfig = DDPMConfig()
     ) -> np.ndarray:
 
         generator = self._make_generator(seed=seed, device=self.device)
@@ -187,10 +207,10 @@ class InferencePipeline:
 
         # Denoise latent
         latents = torch.randn((1, 4, 64, 64), generator=generator, device=self.device)
-        sampler = self._make_sampler(sampler_name, n_step_inf)
+        sampler = self._make_sampler(sampler_config)
         sampler.set_timesteps(1.0)
-        if isinstance(sampler, Euler):
-            latents *= sampler.init_noise_scale.to(device=latents.device, dtype=latents.dtype)
+        #if isinstance(sampler, Euler):
+            #latents *= sampler.init_noise_scale.to(device=latents.device, dtype=latents.dtype)
 
         self._load_model(self.unet)
         latents = self._denoise_latent(
@@ -218,9 +238,8 @@ class InferencePipeline:
         prompt: str = "",
         negative_prompt: str = "",
         guidance_scale: float = 7.5,
-        n_step_inf: int = 50,
         seed: int = 42,
-        sampler_name: str = "ddpm"
+        sampler_config: SamplerConfig = DDPMConfig()
     ) -> np.ndarray:
 
         if input_image is None:
@@ -262,7 +281,7 @@ class InferencePipeline:
         self._offload_model(self.vae)
 
         # Denoise latent
-        sampler = self._make_sampler(sampler_name, n_step_inf)
+        sampler = self._make_sampler(sampler_config)
         sampler.set_timesteps(strength)
 
         if len(sampler.timesteps) > 0:
