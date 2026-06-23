@@ -3,12 +3,12 @@ import torch
 from transformers import CLIPTokenizer
 from dataclasses import dataclass
 
-from diffusion.convert_weights import load_all
-from diffusion.samplers.ddpm import DDPM
-from diffusion.samplers.ddim import DDIM
-from diffusion.models.autoencoder import Autoencoder
-from diffusion.models.clip import CLIP
-from diffusion.models.unet import UNet
+from sdrebuilt.convert_weights import load_all
+from sdrebuilt.samplers.ddpm import DDPM
+from sdrebuilt.samplers.ddim import DDIM
+from sdrebuilt.models.autoencoder import Autoencoder
+from sdrebuilt.models.clip import CLIP
+from sdrebuilt.models.unet import UNet
 
 
 @dataclass

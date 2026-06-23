@@ -1,7 +1,7 @@
 [project]
-name = "stablediffusion-from-scratch"
+name = "stable-diffusion-rebuilt"
 version = "0.1.0"
-description = "Stable Diffusion 1.5 from scratch with finetuning."
+description = "Stable Diffusion 1.5 rebuilt from scratch + LoRA finetuning."
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
@@ -27,7 +27,7 @@ dev = [
     "black>=26.5.1",
     "isort>=8.0.1",
     "ruff>=0.15.16",
-    "stablediffusion-from-scratch",
+    "stable-diffusion-rebuilt",
     "ipykernel>=7.3.0",
     "diffusers>=0.38.0",
 ]
@@ -49,4 +49,4 @@ select = ["E", "F", "I", "B"]
 ignore = []
 
 [tool.uv.sources]
-stablediffusion-from-scratch = { workspace = true }
+stable-diffusion-rebuilt = { workspace = true }
