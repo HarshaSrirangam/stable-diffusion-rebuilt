@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from transformers import CLIPTokenizer
 from dataclasses import dataclass
+from tqdm import tqdm
 
 from sdrebuilt.convert_weights import load_all
 from sdrebuilt.samplers.ddpm import DDPM
@@ -130,7 +131,7 @@ class InferencePipeline:
         use_cfg: bool = True,
         guidance_scale: float = 7.5,
     ) -> torch.Tensor:
-        for i in range(len(sampler.timesteps)):
+        for i in tqdm(range(len(sampler.timesteps)), desc=f"Denoising", leave=False):
             # get current and prev timesteps
             timestep = sampler.timesteps[i]
             if i < len(sampler.timesteps) - 1:
