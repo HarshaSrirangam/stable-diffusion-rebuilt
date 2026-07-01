@@ -1,0 +1,11 @@
+lora:
+  # self and cross attention projections
+  attention_proj_targets: ["q1", "k1", "v1", "proj_out1", "q2", "k2", "v2", "proj_out2"]
+  # cross attention projections
+  cross_proj_targets: ["q2", "k2", "v2", "proj_out2"]
+  # self and cross attention projections, feed-forward network
+  transformer_all_targets: ["q1", "k1", "v1", "proj_out1", "q2", "k2", "v2", "proj_out2", "linear_geglu1", "linear_geglu2"]
+  # qv only in self attention (original LoRA paper)
+  self_qv_targets: ["q1", "v1"]
+  r: 16
+  alpha: 16
