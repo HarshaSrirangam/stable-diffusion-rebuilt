@@ -7,9 +7,9 @@ from tqdm import tqdm
 from sdrebuilt.convert_weights import load_all
 from sdrebuilt.samplers.ddpm import DDPM
 from sdrebuilt.samplers.ddim import DDIM
-from sdrebuilt.models.autoencoder import Autoencoder
-from sdrebuilt.models.clip import CLIP
-from sdrebuilt.models.unet import UNet
+from sdrebuilt.model.autoencoder import Autoencoder
+from sdrebuilt.model.clip import CLIP
+from sdrebuilt.model.unet import UNet
 
 
 @dataclass
