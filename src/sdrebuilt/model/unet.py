@@ -53,7 +53,7 @@ class TimeEmbedding(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    """UNET transformer block."""
+    """UNet transformer block."""
 
     def __init__(self, n_head, channels, d_context=768):
         super().__init__()
