@@ -1949,7 +1949,7 @@ wheels = [
 ]
 
 [[package]]
-name = "stablediffusion-from-scratch"
+name = "stable-diffusion-rebuilt"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
@@ -1970,7 +1970,7 @@ dev = [
     { name = "ipykernel" },
     { name = "isort" },
     { name = "ruff" },
-    { name = "stablediffusion-from-scratch" },
+    { name = "stable-diffusion-rebuilt" },
 ]
 
 [package.metadata]
@@ -1992,7 +1992,7 @@ dev = [
     { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "isort", specifier = ">=8.0.1" },
     { name = "ruff", specifier = ">=0.15.16" },
-    { name = "stablediffusion-from-scratch", editable = "." },
+    { name = "stable-diffusion-rebuilt", editable = "." },
 ]
 
 [[package]]
