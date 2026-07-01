@@ -13,8 +13,16 @@ class LoRALinear(nn.Module):
         self.A = nn.Parameter(torch.randn((r, in_f), dtype=torch.float32))
         self.B = nn.Parameter(torch.zeros((out_f, r), dtype=torch.float32))
         self.scaling = alpha / r
+        self.enabled = True
+        self.merged = None
 
     def forward(self, x: torch.Tensor):
+        if not self.enabled:
+            return self.base_layer(x)
+        
+        if self.merged is not None:
+            return self.merged(x)
+        
         # x: (batch, in_f)
         base = self.base_layer(x)
 
@@ -23,7 +31,23 @@ class LoRALinear(nn.Module):
         # (x @ B.T): (batch, rank) @ (rank, out_f) -> (batch, out_f)
         correction = bottleneck @ self.B.T
 
-        return base + self.scaling(correction)
+        return base + self.scaling * correction
 
-
-
+    def merge(self) -> None:
+        """Creates self.merged: linear layer mergring B, A, and base layer."""
+        has_bias = self.base_layer.bias is not None
+        merged = nn.Linear(
+            self.base_layer.in_features,
+            self.base_layer.out_features,
+            bias=has_bias
+        )
+        with torch.no_grad(): # must turn off autograd for in-place ops on grad-requiring tensors
+            delta = self.scaling * (self.B @ self.A)
+            merged.weight.copy_(self.base_layer.weight + delta)
+            if has_bias:
+                merged.bias.copy_(self.base_layer.bias)
+        merged.requires_grad_(False) # turn off in case more training post-merge
+        self.merged = merged.to(
+            device=self.base_layer.weight.device,
+            dtype=self.base_layer.weight.dtype
+        )
