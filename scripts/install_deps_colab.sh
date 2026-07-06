@@ -2,4 +2,4 @@
 set -e
 
 pip install -e . --no-deps -q
-pip install transformers safetensors tqdm accelerate -q
+pip install transformers safetensors tqdm accelerate pyyaml datasets -q
