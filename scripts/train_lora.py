@@ -9,22 +9,23 @@ Usage:
     uv run python scripts/train_lora.py
 """
 
+import shutil
+from pathlib import Path
+
+import yaml
 import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 from transformers import CLIPTokenizer
-import yaml
-from pathlib import Path
-import shutil
 
-from sdrebuilt.samplers.ddpm import DDPM
+from sdrebuilt.convert_weights import load_all
+from sdrebuilt.dataset import ImageCaptionDataset
+from sdrebuilt.lora.utils import inject_lora
 from sdrebuilt.model.autoencoder import Autoencoder
 from sdrebuilt.model.clip import CLIP
 from sdrebuilt.model.unet import UNet
-from sdrebuilt.convert_weights import load_all
-from sdrebuilt.lora.utils import inject_lora
+from sdrebuilt.samplers.ddpm import DDPM
 from sdrebuilt.trainer import Trainer
-from sdrebuilt.dataset import ImageCaptionDataset
 
 
 def main():
@@ -35,7 +36,7 @@ def main():
         config = yaml.safe_load(f)
 
     # create run directory
-    run_name = f"{config["dataset"]["name"]}_r{config['r']}_{config['targets']['desc']}_{config['name']}"
+    run_name = f"{config['dataset']['name']}_r{config['r']}_{config['targets']['desc']}_{config['name']}"
     run_dir = ROOT / "runs" / run_name
     if run_dir.exists():
         raise FileExistsError(f"run '{run_dir.name}' already exists")
@@ -43,12 +44,12 @@ def main():
     (run_dir / "checkpoints").mkdir()
     # freeze config
     shutil.copy(config_path, run_dir / "config.yaml")
-    
+
     # seed
     torch.manual_seed(config["seed"])
 
     # load sd models
-    device = torch.device(config["device"]) # cuda
+    device = torch.device(config["device"])  # cuda
     vae = Autoencoder().to(device=device)
     clip = CLIP().to(device=device)
     unet = UNet().to(device=device)
@@ -62,31 +63,25 @@ def main():
         model=unet,
         target_names=config["targets"]["layers"],
         r=config["r"],
-        alpha=config["alpha"]
+        alpha=config["alpha"],
     )
 
     # build dataset and dataloader
-    train_dataset = ImageCaptionDataset(
-        source=config["dataset"],
-        image_size=512
-    )
+    train_dataset = ImageCaptionDataset(source=config["dataset"], image_size=512)
     train_loader = DataLoader(
-        train_dataset,
-        batch_size=config["batch_size"],
-        shuffle=True
+        train_dataset, batch_size=config["batch_size"], shuffle=True
     )
 
     # optimizer
     optimizer = optim.AdamW(
-        [p for p in unet.parameters() if p.requires_grad],
-        lr=config["lr"]
+        [p for p in unet.parameters() if p.requires_grad], lr=config["lr"]
     )
 
     # tokenizer
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
-    # noise scheduler
-    scheduler = DDPM() # 1000 train steps by default
+    # noise sampler
+    sampler = DDPM()  # 1000 train steps by default
 
     # Trainer (training loop)
     trainer = Trainer(
@@ -96,11 +91,11 @@ def main():
         tokenizer=tokenizer,
         dataloader=train_loader,
         optimizer=optimizer,
-        scheduler=scheduler,
+        sampler=sampler,
         device=device,
         n_epochs=config["n_epochs"],
         log_interval=config["log_interval"],
-        run_dir=run_dir
+        run_dir=run_dir,
     )
     trainer.train()
 

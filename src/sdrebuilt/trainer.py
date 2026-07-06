@@ -1,32 +1,38 @@
+import json
+from pathlib import Path
+
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from torch.utils.data import DataLoader
-from transformers import CLIPTokenizer
+from torch.amp import autocast
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
-from pathlib import Path
-import json
+from transformers import CLIPTokenizer
 
-from .samplers.ddpm import DDPM
 from .model.autoencoder import Autoencoder
 from .model.clip import CLIP
 from .model.unet import UNet
+from .samplers.ddpm import DDPM
 
 
 class Trainer:
     """
-    Trainer class.
+    Finetune method-agnostic trainer class. Supports UNet finetuning only.
 
     Args:
         vae: frozen autoencoder
         clip: frozen clip text embedder
-        unet: LoRA-injected UNet, all but LoRA layers frozen
+        unet: UNet with only intended trainable params active
         tokenizer: CLIP tokenizer
         dataloader: DataLoader of batched image-caption pairs
-        optimizer: optim.Optimizer,
-        scheduler: DDPM sampler
+        optimizer: Adam or AdamW
+        sampler: DDPM sampler
         device: training device
+        n_epochs: number of training epochs
+        log_interval: number of batches between logging loss
+        run_dir: runs/<current_run>
     """
+
     def __init__(
         self,
         vae: Autoencoder,
@@ -35,11 +41,11 @@ class Trainer:
         tokenizer: CLIPTokenizer,
         dataloader: DataLoader,
         optimizer: optim.Optimizer,
-        scheduler: DDPM,
+        sampler: DDPM,
         device: torch.device,
         n_epochs: int,
         log_interval: int,
-        run_dir: Path
+        run_dir: Path,
     ):
         self.vae = vae
         self.clip = clip
@@ -47,7 +53,7 @@ class Trainer:
         self.tokenizer = tokenizer
         self.dataloader = dataloader
         self.optimizer = optimizer
-        self.scheduler = scheduler
+        self.sampler = sampler
         self.device = device
         self.n_epochs = n_epochs
         self.log_interval = log_interval
@@ -55,55 +61,75 @@ class Trainer:
 
         self.losses = []
 
-    def train(self):
+    @torch.no_grad()
+    def _precompute(self):
+        """
+        Precomputes and caches images->latents and captions->clip embeddings. Offloads
+        vae and clip to cpu. Returns cached dataloader.
+        """
         self.vae.eval()
         self.clip.eval()
+        latents_list, context_list = [], []
+        for batch in self.dataloader:
+            images = batch["image"].to(device=self.device)
+            captions = batch["caption"]
+            b = images.shape[0]
+            tokens = self.tokenizer(
+                captions,
+                padding="max_length",
+                max_length=77,
+                truncation=True,
+                return_tensors="pt",
+            )["input_ids"].to(device=self.device, dtype=torch.long)
+
+            # encode images and captions
+            encoder_noise = torch.randn((b, 4, 64, 64), device=self.device)
+            latents_list.append(self.vae.encode(images, encoder_noise).cpu())
+            context_list.append(self.clip(tokens).cpu())
+        self.vae.to("cpu")
+        self.clip.to("cpu")
+
+        latents = torch.cat(latents_list)  # (B, 4, 64, 64)
+        context = torch.cat(context_list)  # (B, 77, 768)
+        cached_ds = TensorDataset(latents, context)
+        return DataLoader(
+            cached_ds, batch_size=self.dataloader.batch_size, shuffle=True
+        )
+
+    def train(self):
+        """
+        Run full training loop once.
+
+        Precomputes cached image latents and caption embeddings, then trains
+        UNet for n_epochs. Uses bf16 autocast.
+        """
         self.unet.train()
+        cached_loader = self._precompute()  # create cached dataloader
         for epoch in range(self.n_epochs):
-            pbar = tqdm(self.dataloader, desc=f"epoch {epoch + 1}/{self.n_epochs}", colour="blue")
-            for step, batch in enumerate(pbar):
-                images = batch["image"].to(device=self.device) # (B, 3, 512, 512) tensor
-                captions = batch["caption"] # list of B num of strings
-                b = images.shape[0]
+            pbar = tqdm(
+                cached_loader, desc=f"epoch {epoch + 1}/{self.n_epochs}", colour="blue"
+            )
+            for step, (latents, context) in enumerate(pbar):
+                latents = latents.to(device=self.device)
+                context = context.to(device=self.device)
+                b = latents.shape[0]
 
-                # encode images
-                encoder_noise = torch.randn((b, 4, 64, 64), device=self.device)
-                with torch.no_grad():
-                    latents = self.vae.encode(images, encoder_noise)
+                # bf16 autocast
+                with autocast(device_type="cuda", dtype=torch.bfloat16):
+                    # sample random timesteps in [0, 999]
+                    timesteps = torch.randint(
+                        low=0, high=self.sampler.n_step_train, size=(b,)
+                    ).to(device=self.device, dtype=torch.long)
+                    # sample and add noise to latents
+                    sampler_noise = torch.randn_like(latents)
+                    noisy_latents = self.sampler.add_noise(
+                        latents=latents, noise=sampler_noise, timesteps=timesteps
+                    )
 
-                # tokenize captions
-                tokens = self.tokenizer(
-                    captions,
-                    padding="max_length",
-                    max_length=77,
-                    truncation=True,
-                    return_tensors="pt",
-                )["input_ids"].to(device=self.device, dtype=torch.long)
-
-                # encode caption tokens
-                with torch.no_grad():
-                    captions_emb = self.clip(tokens)
-
-                # sample random timesteps in [0, 1000]
-                timesteps = torch.randint(
-                    low=0,
-                    high=self.scheduler.n_step_train,
-                    size=(b,)
-                ).to(device=self.device, dtype=torch.long)
-
-                # sample and add noise to latents
-                scheduler_noise = torch.randn_like(latents)
-                latents = self.scheduler.add_noise(
-                    latents=latents,
-                    noise=scheduler_noise,
-                    timesteps=timesteps
-                )
-
-                # predict noise
-                noise_pred = self.unet(latents, captions_emb, timesteps)
-
-                # MSE loss
-                loss = F.mse_loss(noise_pred, scheduler_noise)
+                    # UNet inference
+                    noise_pred = self.unet(noisy_latents, context, timesteps)
+                    # MSE loss
+                    loss = F.mse_loss(noise_pred, sampler_noise)
 
                 # backprop, optimizer step
                 self.optimizer.zero_grad()
@@ -114,19 +140,17 @@ class Trainer:
                 if step % self.log_interval == 0:
                     self.losses.append(loss.item())
 
-            # save LoRA checkpoints every epoch
-            lora_state = {
+            # save checkpoints every epoch
+            finetune_state = {
                 name: param.detach().to(device=torch.device("cpu"))
-                for name, param in self.unet.named_parameters() if param.requires_grad
+                for name, param in self.unet.named_parameters()
+                if param.requires_grad
             }
             checkpoint_path = self.run_dir / "checkpoints" / f"checkpoint-{epoch}.pt"
-            torch.save(lora_state, checkpoint_path)
-        
+            torch.save(finetune_state, checkpoint_path)
+
         # save losses after training
         losses_path = self.run_dir / "losses.json"
-        payload = {
-            "log_interval": self.log_interval,
-            "losses": self.losses
-        }
+        payload = {"log_interval": self.log_interval, "losses": self.losses}
         with open(losses_path, "w") as f:
             json.dump(payload, f)
