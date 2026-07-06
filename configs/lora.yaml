@@ -1,11 +1,25 @@
-lora:
-  # self and cross attention projections
-  attention_proj_targets: ["q1", "k1", "v1", "proj_out1", "q2", "k2", "v2", "proj_out2"]
-  # cross attention projections
-  cross_proj_targets: ["q2", "k2", "v2", "proj_out2"]
-  # self and cross attention projections, feed-forward network
-  transformer_all_targets: ["q1", "k1", "v1", "proj_out1", "q2", "k2", "v2", "proj_out2", "linear_geglu1", "linear_geglu2"]
-  # qv only in self attention (original LoRA paper)
-  self_qv_targets: ["q1", "v1"]
-  r: 16
-  alpha: 16
+# ----- LoRA finetuning run configs -----
+name: lora
+
+# model / paths
+pretrained_path: data/weights/v1-5-pruned-emaonly.safetensors
+device: cuda
+
+# data
+dataset:
+  type: HuggingFace
+  name: naruto
+
+# lora
+r: 16
+alpha: 16
+targets:
+  desc: selfcross
+  layers: ["q1", "k1", "v1", "proj_out1", "q2", "k2", "v2", "proj_out2"]
+
+# training
+n_epochs: 10
+batch_size: 4
+lr: 0.0001
+seed: 42
+log_interval: 1
