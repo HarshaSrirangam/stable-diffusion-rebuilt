@@ -49,6 +49,7 @@ def main():
     torch.manual_seed(config["seed"])
 
     # load sd models
+    print("Loading pretrained weights...")
     device = torch.device(config["device"])  # cuda
     vae = Autoencoder().to(device=device)
     clip = CLIP().to(device=device)
@@ -56,6 +57,7 @@ def main():
     load_all(config["pretrained_path"], vae=vae, clip=clip, unet=unet)
 
     # inject lora layers
+    print("Injecting LoRA layers...")
     vae.requires_grad_(False)
     clip.requires_grad_(False)
     unet.requires_grad_(False)
@@ -67,6 +69,7 @@ def main():
     )
 
     # build dataset and dataloader
+    print("Preparing dataset...")
     train_dataset = ImageCaptionDataset(source=config["dataset"], image_size=512)
     train_loader = DataLoader(
         train_dataset, batch_size=config["batch_size"], shuffle=True
@@ -102,3 +105,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    print("Training finishes")

@@ -104,7 +104,9 @@ class Trainer:
         UNet for n_epochs. Uses bf16 autocast.
         """
         self.unet.train()
+        print("Precomputing embeddings...")
         cached_loader = self._precompute()  # create cached dataloader
+        print("Training begins")
         for epoch in range(self.n_epochs):
             pbar = tqdm(
                 cached_loader, desc=f"epoch {epoch + 1}/{self.n_epochs}", colour="blue"
@@ -150,6 +152,7 @@ class Trainer:
             torch.save(finetune_state, checkpoint_path)
 
         # save losses after training
+        print("Saving losses...")
         losses_path = self.run_dir / "losses.json"
         payload = {"log_interval": self.log_interval, "losses": self.losses}
         with open(losses_path, "w") as f:
