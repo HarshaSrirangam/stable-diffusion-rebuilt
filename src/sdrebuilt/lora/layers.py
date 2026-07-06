@@ -15,8 +15,9 @@ class LoRALinear(nn.Module):
         for param in self.base_layer.parameters():
             param.requires_grad = False # freeze pretrained weights
         in_f, out_f = base_layer.in_features, base_layer.out_features
-        self.A = nn.Parameter(torch.randn((r, in_f), dtype=torch.float32))
-        self.B = nn.Parameter(torch.zeros((out_f, r), dtype=torch.float32))
+        device = base_layer.weight.device
+        self.A = nn.Parameter(torch.randn((r, in_f), dtype=torch.float32, device=device))
+        self.B = nn.Parameter(torch.zeros((out_f, r), dtype=torch.float32, device=device))
         self.scaling = alpha / r
         self.enabled = True
         self.merged = None
