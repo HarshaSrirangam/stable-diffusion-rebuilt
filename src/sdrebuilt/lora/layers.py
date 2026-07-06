@@ -4,6 +4,11 @@ import torch.nn.functional as F
 
 
 class LoRALinear(nn.Module):
+    """
+    Linear LoRA layer. Based on:
+    Hu et al., "LoRA: Low-Rank Adaptation of Large Language Models"
+    https://arxiv.org/abs/2106.09685
+    """
     def __init__(self, base_layer: nn.Linear, r: int = 16, alpha: int = 16):
         super().__init__()
         self.base_layer = base_layer

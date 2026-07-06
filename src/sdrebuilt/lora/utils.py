@@ -32,9 +32,9 @@ def merge_lora(model: nn.Module):
 
 def enable_lora(model: nn.Module):
     """Toggle lora corrections on."""
-    for param in model.modules():
-        if isinstance(param, LoRALinear):
-            setattr(param, "enabled", True)
+    for module in model.modules():
+        if isinstance(module, LoRALinear):
+            setattr(module, "enabled", True)
 
 
 def disable_lora(model: nn.Module):
