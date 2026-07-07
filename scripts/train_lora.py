@@ -43,7 +43,7 @@ def main():
     run_dir.mkdir(parents=True)
     (run_dir / "checkpoints").mkdir()
     # freeze config
-    shutil.copy(config_path, run_dir / "config.yaml")
+    shutil.copy(config_path, run_dir / "training_config.yaml")
 
     # seed
     torch.manual_seed(config["seed"])
