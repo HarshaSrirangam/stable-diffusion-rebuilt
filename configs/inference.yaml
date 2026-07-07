@@ -1,8 +1,28 @@
-ckpt_path: data/weights/v1-5-pruned-emaonly.safetensors
-device: cuda # for colab
-idle_device: cpu
-n_step_train: 1000
-n_step_inf: 50
+# ----- Inference config -----
+
+name: astronaut_moon_horse
+
+# paths
+pretrained_path: data/weights/v1-5-pruned-emaonly.safetensors
+input_image_path: null          # null -> txt2img, path -> img2img
+
+# lora (run: null -> base model, no adapter)
+run: naruto_r16_selfcross_lora
+checkpoint: last                # "last" or an epoch number
+
+# sampler
+sampler:
+  name: ddpm
+  n_step_inf: 50
+  # betas/eta omitted -> sampler defaults
+
+# generation
+prompt: A realistic picture of an astronaut riding a horse on the moon.
+negative_prompt: unrealistic
 guidance_scale: 7.5
+strength: 0.7
 seed: 42
-negative_prompt: ""
+
+# devices
+device: cuda
+idle_device: cpu
