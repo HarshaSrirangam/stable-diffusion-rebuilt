@@ -1,74 +1,51 @@
 import numpy as np
 import torch
 from transformers import CLIPTokenizer
-from dataclasses import dataclass
 from tqdm import tqdm
 
-from sdrebuilt.convert_weights import load_all
-from sdrebuilt.samplers.ddpm import DDPM
-from sdrebuilt.samplers.ddim import DDIM
-from sdrebuilt.model.autoencoder import Autoencoder
-from sdrebuilt.model.clip import CLIP
-from sdrebuilt.model.unet import UNet
-
-
-@dataclass
-class SamplerConfig:
-    n_step_inf: int = 50
-    beta_start: float = 0.00085
-    beta_end: float = 0.0120
-
-
-@dataclass
-class DDPMConfig(SamplerConfig):
-    # no additional fields
-    pass
-
-
-@dataclass
-class DDIMConfig(SamplerConfig):
-    eta: float = 0.0
+from .convert_weights import load_all
+from .samplers.ddpm import DDPM
+from .samplers.ddim import DDIM
+from .model.autoencoder import Autoencoder
+from .model.clip import CLIP
+from .model.unet import UNet
 
 
 class InferencePipeline:
-    """Main inference class."""
+    """
+    Finetune method-agnostic inference class.
+
+    Args:
+        vae: autoencoder
+        clip: CLIP text embedder
+        unet: UNet
+        sampler: sampler
+        tokenizer: CLIP tokenizer
+        device: inference device
+        idle_device: cpu
+    """
     def __init__(
         self,
-        ckpt_path,
+        vae: Autoencoder,
+        clip: CLIP,
+        unet: UNet,
+        sampler: DDPM | DDIM,
+        tokenizer: CLIPTokenizer,
         device: torch.device | str,
-        idle_device: torch.device | str,
-        n_step_train: int = 1000 # for sampler beta scheduler
+        idle_device: torch.device | str = "cpu",
     ):
+        self.vae = vae
+        self.clip = clip
+        self.unet = unet
+        self.sampler = sampler
+        self.tokenizer = tokenizer
         self.device = device
         self.idle_device = idle_device
-        self.n_step_train=n_step_train
-
-        self.tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-        self.vae = Autoencoder()
-        self.clip = CLIP()
-        self.unet = UNet()
-
-        load_all(ckpt_path, vae=self.vae, clip=self.clip, unet=self.unet)
 
     def _make_generator(self, seed: int, device: torch.device | str) -> torch.Generator:
         generator = torch.Generator(device=device)
         generator.manual_seed(seed)
         return generator
-    
-    def _make_sampler(self, sampler_config: SamplerConfig):
-        common_args = {
-            "n_step_train": self.n_step_train,
-            "n_step_inf": sampler_config.n_step_inf,
-            "beta_start": sampler_config.beta_start,
-            "beta_end": sampler_config.beta_end
-        }
-        
-        if isinstance(sampler_config, DDPMConfig):
-            return DDPM(**common_args)
-        elif isinstance(sampler_config, DDIMConfig):
-            return DDIM(**common_args, eta=sampler_config.eta)
-        else:
-            raise TypeError("Unknown sampler config")
         
     def _load_model(self, model: torch.nn.Module) -> None:
         model.to(device=self.device)
@@ -131,7 +108,7 @@ class InferencePipeline:
         use_cfg: bool = True,
         guidance_scale: float = 7.5,
     ) -> torch.Tensor:
-        for i in tqdm(range(len(sampler.timesteps)), desc=f"Denoising", leave=False):
+        for i in tqdm(range(len(sampler.timesteps)), desc=f"Denoising", leave=True):
             # get current and prev timesteps
             timestep = sampler.timesteps[i]
             if i < len(sampler.timesteps) - 1:
@@ -177,8 +154,7 @@ class InferencePipeline:
                 generator=generator
             )
         return latents
-
-
+    
     # -----------------------------------------------------------------------------
     # Main generation methods
     # -----------------------------------------------------------------------------
@@ -190,7 +166,6 @@ class InferencePipeline:
         negative_prompt: str = "",
         guidance_scale: float = 7.5,
         seed: int = 42,
-        sampler_config: SamplerConfig = DDPMConfig()
     ) -> np.ndarray:
 
         generator = self._make_generator(seed=seed, device=self.device)
@@ -208,14 +183,13 @@ class InferencePipeline:
 
         # Denoise latent
         latents = torch.randn((1, 4, 64, 64), generator=generator, device=self.device)
-        sampler = self._make_sampler(sampler_config)
-        sampler.set_timesteps(1.0)
+        self.sampler.set_timesteps(1.0)
         #if isinstance(sampler, Euler):
             #latents *= sampler.init_noise_scale.to(device=latents.device, dtype=latents.dtype)
 
         self._load_model(self.unet)
         latents = self._denoise_latent(
-            sampler=sampler,
+            sampler=self.sampler,
             latents=latents,
             generator=generator,
             context=context,
@@ -240,7 +214,6 @@ class InferencePipeline:
         negative_prompt: str = "",
         guidance_scale: float = 7.5,
         seed: int = 42,
-        sampler_config: SamplerConfig = DDPMConfig()
     ) -> np.ndarray:
 
         if input_image is None:
@@ -282,20 +255,19 @@ class InferencePipeline:
         self._offload_model(self.vae)
 
         # Denoise latent
-        sampler = self._make_sampler(sampler_config)
-        sampler.set_timesteps(strength)
+        self.sampler.set_timesteps(strength)
 
-        if len(sampler.timesteps) > 0:
+        if len(self.sampler.timesteps) > 0:
             noise = torch.randn(latents.shape, generator=generator, device=latents.device)
-            latents = sampler.add_noise(
+            latents = self.sampler.add_noise(
                 latents=latents,
                 noise=noise,
-                timesteps=sampler.timesteps[0]
+                timesteps=self.sampler.timesteps[0]
             )
 
         self._load_model(self.unet)
         latents = self._denoise_latent(
-            sampler=sampler,
+            sampler=self.sampler,
             latents=latents,
             context=context,
             generator=generator,
