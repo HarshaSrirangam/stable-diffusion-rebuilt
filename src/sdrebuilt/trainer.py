@@ -88,6 +88,7 @@ class Trainer:
             context_list.append(self.clip(tokens).cpu())
         self.vae.to("cpu")
         self.clip.to("cpu")
+        torch.cuda.empty_cache()
 
         latents = torch.cat(latents_list)  # (B, 4, 64, 64)
         context = torch.cat(context_list)  # (B, 77, 768)
