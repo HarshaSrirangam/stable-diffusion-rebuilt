@@ -4,11 +4,11 @@ import torch.nn.functional as F
 
 
 class TransformerBlock(nn.Module):
-    def __init__(self, n_head, d_model):
+    def __init__(self, n_heads, d_model):
         super().__init__()
-        self.n_head = n_head
-        assert d_model % n_head == 0, "d_model must be divisible by n_head"
-        self.d_k = d_model // n_head
+        self.n_heads = n_heads
+        assert d_model % n_heads == 0, "d_model must be divisible by n_heads"
+        self.d_k = d_model // n_heads
         self.q = nn.Linear(d_model, d_model)
         self.k = nn.Linear(d_model, d_model)
         self.v = nn.Linear(d_model, d_model)
@@ -28,10 +28,10 @@ class TransformerBlock(nn.Module):
         k = self.k(tokens)
         v = self.v(tokens)
 
-        # (B, 77, 768) -> (B, 77, n_head, d_k) -> (B, n_head, 77, d_k)
-        q = q.reshape(b, seq_len, self.n_head, self.d_k).transpose(1, 2)
-        k = k.reshape(b, seq_len, self.n_head, self.d_k).transpose(1, 2)
-        v = v.reshape(b, seq_len, self.n_head, self.d_k).transpose(1, 2)
+        # (B, 77, 768) -> (B, 77, n_heads, d_k) -> (B, n_heads, 77, d_k)
+        q = q.reshape(b, seq_len, self.n_heads, self.d_k).transpose(1, 2)
+        k = k.reshape(b, seq_len, self.n_heads, self.d_k).transpose(1, 2)
+        v = v.reshape(b, seq_len, self.n_heads, self.d_k).transpose(1, 2)
 
         # causal mask: a token shouldn't attend to tokens after it
         # triu because masked_fill operates on true values
@@ -61,13 +61,13 @@ class CLIP(nn.Module):
     """Frozen CLIP text encoder."""
 
     def __init__(
-        self, vocab_size=49408, max_seq_len=77, d_model=768, n_head=12, n_blocks=12
+        self, vocab_size=49408, max_seq_len=77, d_model=768, n_heads=12, n_blocks=12
     ):
         super().__init__()
         self.token_embedding_table = nn.Embedding(vocab_size, d_model)
         self.position_embedding_table = nn.Embedding(max_seq_len, d_model)
         self.transformer_blocks = nn.ModuleList(
-            [TransformerBlock(n_head=n_head, d_model=d_model) for _ in range(n_blocks)]
+            [TransformerBlock(n_heads=n_heads, d_model=d_model) for _ in range(n_blocks)]
         )
         self.layernorm = nn.LayerNorm(d_model)
 

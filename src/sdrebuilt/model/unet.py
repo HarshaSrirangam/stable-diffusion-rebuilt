@@ -11,7 +11,7 @@ class UpSample(nn.Module):
         self.conv = nn.Conv2d(channels, channels, kernel_size=3, padding=1)
 
     def forward(self, x: torch.Tensor):
-        # x: (B,C,H,W) -> (B,C,2*H,2*W)
+        # x: (B, C, H, W) -> (B, C, 2*H, 2*W)
         x = F.interpolate(x, scale_factor=2, mode="nearest")
         x = self.conv(x)
 
@@ -21,17 +21,17 @@ class UpSample(nn.Module):
 class TimeEmbedding(nn.Module):
     """Time embedding with sinusoidal features and simple MLP."""
 
-    def __init__(self, d_embed=320):
+    def __init__(self, d_time=320):
         super().__init__()
-        half_d_embed = d_embed // 2
+        half_d_time = d_time // 2
         freqs = torch.pow(
             10000,
-            -torch.arange(start=0, end=half_d_embed, dtype=torch.float32)
-            / half_d_embed,
+            -torch.arange(start=0, end=half_d_time, dtype=torch.float32)
+            / half_d_time,
         )
         self.register_buffer("freqs", freqs, persistent=False)
-        self.linear1 = nn.Linear(d_embed, 4 * d_embed)
-        self.linear2 = nn.Linear(4 * d_embed, 4 * d_embed)
+        self.linear1 = nn.Linear(d_time, 4 * d_time)
+        self.linear2 = nn.Linear(4 * d_time, 4 * d_time)
 
     def forward(self, timesteps: torch.Tensor) -> torch.Tensor:
         """
@@ -55,12 +55,12 @@ class TimeEmbedding(nn.Module):
 class TransformerBlock(nn.Module):
     """UNet transformer block with SDPA."""
 
-    def __init__(self, n_head, channels, d_context=768):
+    def __init__(self, n_heads, channels, d_context=768):
         super().__init__()
 
-        self.n_head = n_head
-        assert channels % n_head == 0, "channels must be divisible by n_head"
-        self.d_k = channels // n_head
+        self.n_heads = n_heads
+        assert channels % n_heads == 0, "channels must be divisible by n_heads"
+        self.d_k = channels // n_heads
 
         assert channels % 32 == 0, "channels must be divisible by 32"
         self.groupnorm = nn.GroupNorm(32, channels, eps=1e-6)
@@ -101,9 +101,9 @@ class TransformerBlock(nn.Module):
         x = self.layernorm1(x)
 
         # QKV projections and split into heads
-        q1 = self.q1(x).reshape(b, h * w, self.n_head, self.d_k).transpose(1, 2)
-        k1 = self.k1(x).reshape(b, h * w, self.n_head, self.d_k).transpose(1, 2)
-        v1 = self.v1(x).reshape(b, h * w, self.n_head, self.d_k).transpose(1, 2)
+        q1 = self.q1(x).reshape(b, h * w, self.n_heads, self.d_k).transpose(1, 2)
+        k1 = self.k1(x).reshape(b, h * w, self.n_heads, self.d_k).transpose(1, 2)
+        v1 = self.v1(x).reshape(b, h * w, self.n_heads, self.d_k).transpose(1, 2)
 
         x = F.scaled_dot_product_attention(q1, k1, v1) # (B, n_heads, H*W, d_k)
 
@@ -123,19 +123,19 @@ class TransformerBlock(nn.Module):
         k2 = self.k2(context)
         v2 = self.v2(context)
 
-        b, seq_len_x, c = q2.shape
+        b, seq_len_q, c = q2.shape
         _, seq_len_context, _ = k2.shape
 
         # split into heads
-        q2 = q2.reshape(b, seq_len_x, self.n_head, self.d_k).transpose(1, 2)
-        k2 = k2.reshape(b, seq_len_context, self.n_head, self.d_k).transpose(1, 2)
-        v2 = v2.reshape(b, seq_len_context, self.n_head, self.d_k).transpose(1, 2)
+        q2 = q2.reshape(b, seq_len_q, self.n_heads, self.d_k).transpose(1, 2)
+        k2 = k2.reshape(b, seq_len_context, self.n_heads, self.d_k).transpose(1, 2)
+        v2 = v2.reshape(b, seq_len_context, self.n_heads, self.d_k).transpose(1, 2)
 
         x = F.scaled_dot_product_attention(q2, k2, v2)
 
         # merge heads
         x = x.transpose(1, 2).contiguous()
-        x = x.reshape(b, seq_len_x, c)
+        x = x.reshape(b, seq_len_q, c)
 
         x = self.proj_out2(x)
         x = x + residual1

@@ -91,7 +91,7 @@ class AttnBlock(nn.Module):
 
         x = attn_scores @ v
 
-        # (B, H*W, C)-> (B, C, H*W) -> (B, C, H, W)
+        # (B, H*W, C) -> (B, C, H*W) -> (B, C, H, W)
         x = x.transpose(-1, -2).reshape(b, c, h, w)
         x = self.proj_out(x)
 

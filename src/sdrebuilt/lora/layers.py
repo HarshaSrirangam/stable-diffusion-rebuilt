@@ -14,10 +14,10 @@ class LoRALinear(nn.Module):
         self.base_layer = base_layer
         for param in self.base_layer.parameters():
             param.requires_grad = False # freeze pretrained weights
-        in_f, out_f = base_layer.in_features, base_layer.out_features
+        d_in, d_out = base_layer.in_features, base_layer.out_features
         device = base_layer.weight.device
-        self.A = nn.Parameter(torch.randn((r, in_f), dtype=torch.float32, device=device))
-        self.B = nn.Parameter(torch.zeros((out_f, r), dtype=torch.float32, device=device))
+        self.A = nn.Parameter(torch.randn((r, d_in), dtype=torch.float32, device=device))
+        self.B = nn.Parameter(torch.zeros((d_out, r), dtype=torch.float32, device=device))
         self.scaling = alpha / r
         self.enabled = True
         self.merged = None
@@ -29,12 +29,12 @@ class LoRALinear(nn.Module):
         if self.merged is not None:
             return self.merged(x)
         
-        # x: (batch, in_f)
+        # x: (B, d_in)
         base = self.base_layer(x)
 
-        # (x @ A.T): (batch, in_f) @ (in_f, rank) -> (batch, rank)
+        # (x @ A.T): (B, d_in) @ (d_in, r) -> (B, r)
         bottleneck = x @ self.A.T
-        # (x @ B.T): (batch, rank) @ (rank, out_f) -> (batch, out_f)
+        # (x @ B.T): (B, r) @ (r, d_out) -> (B, d_out)
         correction = bottleneck @ self.B.T
 
         return base + self.scaling * correction
