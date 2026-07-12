@@ -68,6 +68,8 @@ class TransformerBlock(nn.Module):
 
         self.layernorm1 = nn.LayerNorm(channels)
 
+        # key bias is canceled out in softmax, so exclude it
+        # query and value biases have a negligible contribution 
         self.q1 = nn.Linear(channels, channels, bias=False)
         self.k1 = nn.Linear(channels, channels, bias=False)
         self.v1 = nn.Linear(channels, channels, bias=False)
