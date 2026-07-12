@@ -23,4 +23,5 @@ data/
 # other
 notebooks/scratch/*
 scripts/lint.sh
+runs
 runs/
