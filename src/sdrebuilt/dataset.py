@@ -4,7 +4,18 @@ from datasets import load_dataset
 
 
 class ImageCaptionDataset(Dataset):
-    def __init__(self, source: dict[str, str], image_size: int = 512):
+    """
+    Image-caption dataset class.
+
+    Loads image-caption pairs from the given source. Indexing returns a dict:
+    {"image": Tensor(3, image_size, image_size) in [-1, 1], "caption": str}
+
+    Args:
+        dataset_name: which dataset to load (e.g. "naruto")
+        dataset_type: source type (e.g. "HuggingFace)
+        image_size: square size images are resized to
+    """
+    def __init__(self, dataset_name: str, dataset_type: str, image_size: int = 512):
         self.transform = transforms.Compose([
             transforms.Lambda(lambda img: img.convert("RGB")), # 3 channels
             transforms.Resize(image_size), # shorter side -> 512
@@ -16,8 +27,8 @@ class ImageCaptionDataset(Dataset):
             ) # [0, 1] -> [-1, 1] for VAE/UNet
         ])
 
-        if source["type"] == "HuggingFace":
-            self.samples = self._load_hf(source)
+        if dataset_type == "HuggingFace":
+            self.samples = self._load_hf(dataset_name)
         else:
             raise ValueError("Unknown type")
 
@@ -30,12 +41,9 @@ class ImageCaptionDataset(Dataset):
             "caption": self.samples[i]["text"]
         }
 
-    def _load_hf(self, source: dict[str, str]):
-        """
-        source: dict with dataset type and name keys.
-        """
-        if source["name"] == "naruto":
+    def _load_hf(self, dataset_name: str):
+        if dataset_name == "naruto":
             return load_dataset("lambdalabs/naruto-blip-captions", split="train")
         else:
-            raise ValueError("Unknown huggingface dataset")
+            raise ValueError("Unknown HuggingFace dataset")
 

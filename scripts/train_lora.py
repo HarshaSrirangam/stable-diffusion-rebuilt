@@ -51,7 +51,11 @@ def precompute(config, cache_path: Path) -> None:
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
     # build raw dataset from config
-    dataset = ImageCaptionDataset(config["dataset"], image_size=512)
+    dataset = ImageCaptionDataset(
+        dataset_name=config["dataset"]["name"],
+        dataset_type=config["dataset"]["type"],
+        image_size=512
+    )
     loader = DataLoader(dataset, batch_size=config["batch_size"])
 
     # encode data
