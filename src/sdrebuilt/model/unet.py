@@ -53,7 +53,7 @@ class TimeEmbedding(nn.Module):
 
 
 class TransformerBlock(nn.Module):
-    """UNet transformer block."""
+    """UNet transformer block with SDPA."""
 
     def __init__(self, n_head, channels, d_context=768):
         super().__init__()
@@ -105,10 +105,7 @@ class TransformerBlock(nn.Module):
         k1 = self.k1(x).reshape(b, h * w, self.n_head, self.d_k).transpose(1, 2)
         v1 = self.v1(x).reshape(b, h * w, self.n_head, self.d_k).transpose(1, 2)
 
-        attn_scores1 = q1 @ k1.transpose(-1, -2)
-        attn_scores1 = F.softmax((attn_scores1 / (self.d_k**0.5)), dim=-1)
-
-        x = attn_scores1 @ v1
+        x = F.scaled_dot_product_attention(q1, k1, v1) # (B, n_heads, H*W, d_k)
 
         # merge heads
         x = x.transpose(1, 2).contiguous()
@@ -134,12 +131,7 @@ class TransformerBlock(nn.Module):
         k2 = k2.reshape(b, seq_len_context, self.n_head, self.d_k).transpose(1, 2)
         v2 = v2.reshape(b, seq_len_context, self.n_head, self.d_k).transpose(1, 2)
 
-        # (B, n_head, H*W, d_k) @ (B, d_k, 77) -> (B, n_head, H*W, 77)
-        attn_scores2 = q2 @ k2.transpose(-1, -2)
-        attn_scores2 = F.softmax((attn_scores2 / (self.d_k) ** 0.5), dim=-1)
-
-        # (B, n_head, H*W, 77) @ (B, n_head, 77, d_k) -> (B, n_head, H*W, d_k)
-        x = attn_scores2 @ v2
+        x = F.scaled_dot_product_attention(q2, k2, v2)
 
         # merge heads
         x = x.transpose(1, 2).contiguous()
