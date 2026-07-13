@@ -12,14 +12,16 @@ Usage:
 import shutil
 from pathlib import Path
 
-import yaml
+import datasets
 import torch
 import torch.optim as optim
-from torch.utils.data import TensorDataset, DataLoader
-from transformers import CLIPTokenizer
+import yaml
+from torch.utils.data import DataLoader, TensorDataset
 from tqdm import tqdm
+from transformers import CLIPTokenizer
+from transformers.utils import logging as hf_logging
 
-from sdrebuilt.convert_weights import load_vae, load_clip, load_unet
+from sdrebuilt.convert_weights import load_clip, load_unet, load_vae
 from sdrebuilt.dataset import ImageCaptionDataset
 from sdrebuilt.lora.utils import inject_lora
 from sdrebuilt.model.autoencoder import Autoencoder
@@ -28,25 +30,29 @@ from sdrebuilt.model.unet import UNet
 from sdrebuilt.samplers.ddpm import DDPM
 from sdrebuilt.trainer import Trainer
 
+hf_logging.set_verbosity_error()
+datasets.logging.set_verbosity_error()
+datasets.disable_progress_bars()
+
+
+def log(msg: str) -> None:
+    print(f"\n>>> {msg}")
+
+
 @torch.no_grad()
 def precompute(config, cache_path: Path) -> None:
     """
-    Precomputes and saves images->latents and captions->clip embeddings to disk. 
+    Precomputes and saves images->latents and captions->clip embeddings to disk.
     """
+    log("Precomputing image/caption embeddings (no cache found)")
     # build frozen encoders
     device = config["device"]
     pretrained_path = config["pretrained_path"]
     vae = Autoencoder().eval().requires_grad_(False)
-    load_vae(
-        path=pretrained_path,
-        vae=vae
-    )
+    load_vae(path=pretrained_path, vae=vae)
     vae.to(device)
     clip = CLIP().eval().requires_grad_(False)
-    load_clip(
-        path=pretrained_path,
-        clip=clip
-    )
+    load_clip(path=pretrained_path, clip=clip)
     clip.to(device)
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
@@ -54,7 +60,7 @@ def precompute(config, cache_path: Path) -> None:
     dataset = ImageCaptionDataset(
         dataset_name=config["dataset"]["name"],
         dataset_type=config["dataset"]["type"],
-        image_size=512
+        image_size=512,
     )
     loader = DataLoader(dataset, batch_size=config["batch_size"])
 
@@ -84,6 +90,7 @@ def precompute(config, cache_path: Path) -> None:
     cache_path.parent.mkdir(parents=True, exist_ok=True)
     torch.save({"latents": latents, "context": context}, cache_path)
 
+
 def main():
     # load lora config
     ROOT = Path(__file__).resolve().parents[1]
@@ -92,7 +99,10 @@ def main():
         config = yaml.safe_load(f)
 
     # create run directory
-    run_name = f"{config['dataset']['name']}_r{config['r']}_{config['targets']['desc']}_{config['name']}"
+    run_name = (
+        f"{config['dataset']['name']}_r{config['r']}"
+        f"_{config['targets']['desc']}_{config['name']}"
+    )
     run_dir = ROOT / "runs" / run_name
     if run_dir.exists():
         raise FileExistsError(f"run '{run_dir.name}' already exists")
@@ -105,7 +115,7 @@ def main():
     torch.manual_seed(config["seed"])
 
     # load UNet and inject LoRA layers
-    print("Loading UNet weights...")
+    log("Loading UNet and injecting LoRA layers")
     device = torch.device(config["device"])  # cuda
     unet = UNet().eval().requires_grad_(False)
     load_unet(
@@ -113,7 +123,6 @@ def main():
         unet=unet,
     )
     unet.to(device)
-    print("Injecting LoRA layers...")
     unet.requires_grad_(False)
     inject_lora(
         model=unet,
@@ -122,7 +131,7 @@ def main():
         alpha=config["alpha"],
     )
     # build dataset and dataloader
-    print("Preparing dataset...")
+    log("Preparing dataset")
     cache_path = ROOT / "data" / "cache" / f"{config['dataset']['name']}.pt"
     if not cache_path.exists():
         precompute(config=config, cache_path=cache_path)
@@ -134,9 +143,6 @@ def main():
     optimizer = optim.AdamW(
         [p for p in unet.parameters() if p.requires_grad], lr=config["lr"]
     )
-
-    # tokenizer
-    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
     # noise sampler
     sampler = DDPM()  # 1000 train steps by default
@@ -152,9 +158,10 @@ def main():
         log_interval=config["log_interval"],
         run_dir=run_dir,
     )
+    log("Training")
     trainer.train()
 
 
 if __name__ == "__main__":
     main()
-    print("Training finishes")
+    log("Done")

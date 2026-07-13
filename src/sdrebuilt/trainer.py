@@ -26,6 +26,7 @@ class Trainer:
         log_interval: number of batches between logging loss
         run_dir: runs/<current_run>
     """
+
     def __init__(
         self,
         unet: UNet,
@@ -47,17 +48,17 @@ class Trainer:
         self.run_dir = run_dir
 
         self.losses = []
-    
+
     def train(self):
         """
         Trains UNet for n_epochs. Uses bf16 autocast.
         """
         self.unet.train()
-        print("Precomputing image/caption embeddings...")
-        print("Training begins")
         for epoch in range(self.n_epochs):
             pbar = tqdm(
-                self.dataloader, desc=f"epoch {epoch + 1}/{self.n_epochs}", colour="blue"
+                self.dataloader,
+                desc=f"epoch {epoch + 1}/{self.n_epochs}",
+                colour="blue",
             )
             for step, (latents, context) in enumerate(pbar):
                 latents = latents.to(device=self.device)
@@ -100,7 +101,6 @@ class Trainer:
             torch.save(finetune_state, checkpoint_path)
 
         # save losses after training
-        print("Saving losses...")
         losses_path = self.run_dir / "losses.json"
         payload = {"log_interval": self.log_interval, "losses": self.losses}
         with open(losses_path, "w") as f:
