@@ -2,7 +2,7 @@
 Train LoRA adapters.
 
 Reads configs/lora.yaml, freezes base model, injects LoRA layers into
-the UNet (as specified by config), and trains on the configured dataset.
+the UNet (as specified by config), and trains on the config dataset.
 Writes checkpoints/, losses.json, and config.yaml to runs/<run_name>.
 
 Usage:
@@ -104,19 +104,27 @@ def main():
         f"_{config['targets']['desc']}_{config['name']}"
     )
     run_dir = ROOT / "runs" / run_name
+    frozen_cfg = run_dir / "training_config.yaml"
     if run_dir.exists():
-        raise FileExistsError(f"run '{run_dir.name}' already exists")
+        existing_frozen_cfg = yaml.safe_load(open(frozen_cfg))
+        if config == existing_frozen_cfg:
+            print(f">>> run '{run_name} already trained with identical config. Skipping.")
+            return
+        raise FileExistsError(
+            f"run '{run_dir.name}' already exists with a DIFFERENT config. "
+            f"Modify 'name' field in lora.yaml or delete folder to retrain."
+        )
     run_dir.mkdir(parents=True)
     (run_dir / "checkpoints").mkdir()
     # freeze config
-    shutil.copy(config_path, run_dir / "training_config.yaml")
+    shutil.copy(config_path, frozen_cfg)
 
     # seed
     torch.manual_seed(config["seed"])
 
     # load UNet and inject LoRA layers
     log("Loading UNet and injecting LoRA layers")
-    device = torch.device(config["device"])  # cuda
+    device = torch.device(config["device"]) # cuda
     unet = UNet().eval().requires_grad_(False)
     load_unet(
         path=config["pretrained_path"],
