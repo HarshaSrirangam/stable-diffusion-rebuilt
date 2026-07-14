@@ -1,17 +1,15 @@
-import urllib.request
 from pathlib import Path
 
-FILES = {
-    "data/weights/v1-5-pruned-emaonly.safetensors": "https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors",
-}
+from huggingface_hub import hf_hub_download
 
-for path, url in FILES.items():
-    path = Path(path)
-    path.parent.mkdir(parents=True, exist_ok=True)
+REPO_ID = "stable-diffusion-v1-5/stable-diffusion-v1-5"
+FILENAME = "v1-5-pruned-emaonly.safetensors"
+DESTINATION = Path("data/weights")
 
-    if path.exists():
-        print(f"skipping {path}")
-        continue
-
-    print(f"downloading {path}")
-    urllib.request.urlretrieve(url, path)
+target = DESTINATION / FILENAME
+if target.exists():
+    print(f"skipping {target}")
+else:
+    print(f"downloading {FILENAME}")
+    DESTINATION.mkdir(parents=True, exist_ok=True)
+    hf_hub_download(repo_id=REPO_ID, filename=FILENAME, local_dir=str(DESTINATION))
