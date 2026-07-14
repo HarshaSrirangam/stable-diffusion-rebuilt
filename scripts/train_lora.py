@@ -9,10 +9,16 @@ Usage:
     uv run python scripts/train_lora.py
 """
 
+import os
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
 import shutil
 from pathlib import Path
 
 import datasets
+import huggingface_hub
 import torch
 import torch.optim as optim
 import yaml
@@ -33,6 +39,9 @@ from sdrebuilt.trainer import Trainer
 hf_logging.set_verbosity_error()
 datasets.logging.set_verbosity_error()
 datasets.disable_progress_bars()
+huggingface_hub.logging.set_verbosity_error()
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def log(msg: str) -> None:

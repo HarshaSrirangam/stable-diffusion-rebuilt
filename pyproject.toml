@@ -15,6 +15,7 @@ dependencies = [
     "pyyaml",
     "torchvision>=0.27.0",
     "datasets>=5.0.0",
+    "huggingface-hub>=1.19.0",
 ]
 
 [build-system]

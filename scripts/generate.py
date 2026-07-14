@@ -10,9 +10,15 @@ Usage:
     uv run python scripts/generate.py
 """
 
+import os
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
 import shutil
 from pathlib import Path
 
+import huggingface_hub
 import numpy as np
 import torch
 import yaml
@@ -30,6 +36,9 @@ from sdrebuilt.samplers.ddim import DDIM
 from sdrebuilt.samplers.ddpm import DDPM
 
 hf_logging.set_verbosity_error()
+huggingface_hub.logging.set_verbosity_error()
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def log(msg: str) -> None:
