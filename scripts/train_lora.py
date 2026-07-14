@@ -56,7 +56,7 @@ def precompute(config, cache_path: Path) -> None:
     log("Precomputing image/caption embeddings (no cache found)")
     # build frozen encoders
     device = config["device"]
-    pretrained_path = config["pretrained_path"]
+    pretrained_path = ROOT / config["pretrained_path"]
     vae = Autoencoder().eval().requires_grad_(False)
     load_vae(path=pretrained_path, vae=vae)
     vae.to(device)
@@ -102,7 +102,6 @@ def precompute(config, cache_path: Path) -> None:
 
 def main():
     # load lora config
-    ROOT = Path(__file__).resolve().parents[1]
     config_path = ROOT / "configs" / "lora.yaml"
     with open(config_path) as f:
         config = yaml.safe_load(f)
@@ -117,7 +116,9 @@ def main():
     if run_dir.exists():
         existing_frozen_cfg = yaml.safe_load(open(frozen_cfg))
         if config == existing_frozen_cfg:
-            print(f">>> run '{run_name} already trained with identical config. Skipping.")
+            print(
+                f">>> run '{run_name} already trained with identical config. Skipping."
+            )
             return
         raise FileExistsError(
             f"run '{run_dir.name}' already exists with a DIFFERENT config. "
@@ -133,10 +134,10 @@ def main():
 
     # load UNet and inject LoRA layers
     log("Loading UNet and injecting LoRA layers")
-    device = torch.device(config["device"]) # cuda
+    device = torch.device(config["device"])  # cuda
     unet = UNet().eval().requires_grad_(False)
     load_unet(
-        path=config["pretrained_path"],
+        path=ROOT / config["pretrained_path"],
         unet=unet,
     )
     unet.to(device)

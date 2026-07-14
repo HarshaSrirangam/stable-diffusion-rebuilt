@@ -47,7 +47,6 @@ def log(msg: str) -> None:
 
 def main():
     # load inference config
-    ROOT = Path(__file__).resolve().parents[1]
     config_path = ROOT / "configs" / "inference.yaml"
     with open(config_path, "r") as f:
         config = yaml.safe_load(f)
@@ -76,7 +75,7 @@ def main():
     vae = Autoencoder().eval()
     clip = CLIP().eval()
     unet = UNet().eval()
-    load_all(config["pretrained_path"], vae=vae, clip=clip, unet=unet)
+    load_all(ROOT / config["pretrained_path"], vae=vae, clip=clip, unet=unet)
 
     # retrieve lora config and inject layers (if lora enabled)
     if lora_enabled:

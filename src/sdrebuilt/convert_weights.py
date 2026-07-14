@@ -3,7 +3,7 @@ load SD1.5 .safetensors weights into models.
 
 Usage:
     from convert_weights import load_all
-    load_all_models("v1-5-pruned-emaonly.safetensors", my_unet, my_vae, my_clip)
+    load_all("v1-5-pruned-emaonly.safetensors", my_unet, my_vae, my_clip)
 """
 
 from safetensors.torch import load_file
