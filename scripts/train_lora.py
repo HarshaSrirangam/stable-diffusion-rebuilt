@@ -67,8 +67,7 @@ def precompute(config, cache_path: Path) -> None:
 
     # build raw dataset from config
     dataset = ImageCaptionDataset(
-        dataset_name=config["dataset"]["name"],
-        dataset_type=config["dataset"]["type"],
+        dataset=config["dataset"],
         image_size=512,
     )
     loader = DataLoader(dataset, batch_size=config["batch_size"])
@@ -108,7 +107,7 @@ def main():
 
     # create run directory
     run_name = (
-        f"{config['dataset']['name']}_r{config['r']}"
+        f"{config['dataset']}_r{config['r']}"
         f"_{config['targets']['desc']}_{config['name']}"
     )
     run_dir = ROOT / "runs" / run_name
@@ -150,7 +149,7 @@ def main():
     )
     # build dataset and dataloader
     log("Preparing dataset")
-    cache_path = ROOT / "data" / "cache" / f"{config['dataset']['name']}.pt"
+    cache_path = ROOT / "data" / "cache" / f"{config['dataset']}.pt"
     if not cache_path.exists():
         precompute(config=config, cache_path=cache_path)
     data = torch.load(cache_path)

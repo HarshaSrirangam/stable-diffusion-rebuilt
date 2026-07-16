@@ -6,9 +6,7 @@ pretrained_path: data/weights/v1-5-pruned-emaonly.safetensors
 device: cuda
 
 # data
-dataset:
-  type: HuggingFace
-  name: naruto
+dataset: naruto
 
 # lora
 r: 16

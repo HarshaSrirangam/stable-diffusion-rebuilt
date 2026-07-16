@@ -5,17 +5,14 @@ from datasets import load_dataset
 
 class ImageCaptionDataset(Dataset):
     """
-    Image-caption dataset class.
-
-    Loads image-caption pairs from the given source. Indexing returns a dict:
-    {"image": Tensor(3, image_size, image_size) in [-1, 1], "caption": str}
+    Image-caption dataset class. Images are resized to image_size x image_size
+    squares and pixel values are scaled to [-1, 1].
 
     Args:
-        dataset_name: which dataset to load (e.g. "naruto")
-        dataset_type: source type (e.g. "HuggingFace)
+        dataset: name of dataset (e.g. naruto)
         image_size: square size images are resized to
     """
-    def __init__(self, dataset_name: str, dataset_type: str, image_size: int = 512):
+    def __init__(self, dataset: str, image_size: int = 512):
         self.transform = transforms.Compose([
             transforms.Lambda(lambda img: img.convert("RGB")), # 3 channels
             transforms.Resize(image_size), # shorter side -> 512
@@ -27,8 +24,10 @@ class ImageCaptionDataset(Dataset):
             ) # [0, 1] -> [-1, 1] for VAE/UNet
         ])
 
-        if dataset_type == "HuggingFace":
-            self.samples = self._load_hf(dataset_name)
+        if dataset == "naruto":
+            self.samples = self._load_naruto()
+        elif dataset == "persian":
+            self.samples = self._load_persian()
         else:
             raise ValueError("Unknown type")
 
@@ -36,14 +35,18 @@ class ImageCaptionDataset(Dataset):
         return len(self.samples)
     
     def __getitem__(self, i):
+        """
+        Naruto samples are accessed via samples[i]["image"] and 
+        samples[i]["text"], so other custom dataset(s) was built
+        to be indexed the same way.
+        """
         return {
             "image": self.transform(self.samples[i]["image"]),
             "caption": self.samples[i]["text"]
         }
 
-    def _load_hf(self, dataset_name: str):
-        if dataset_name == "naruto":
-            return load_dataset("lambdalabs/naruto-blip-captions", split="train")
-        else:
-            raise ValueError("Unknown HuggingFace dataset")
+    def _load_naruto(self):
+        return load_dataset("lambdalabs/naruto-blip-captions", split="train")
 
+    def _load_persian(self):
+        return load_dataset("imagefolder", data_dir="data/persian/processed", split="train")
