@@ -1,8 +1,8 @@
 """
-Train LoRA adapters.
+Train a LoRA adapter.
 
 Reads configs/lora.yaml, freezes base model, injects LoRA layers into
-the UNet (as specified by config), and trains on the config dataset.
+the UNet (target layers specified in config), and trains on the config dataset.
 Writes checkpoints/, losses.json, and config.yaml to runs/<run_name>.
 
 Usage:

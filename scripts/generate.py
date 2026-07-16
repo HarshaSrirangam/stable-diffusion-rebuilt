@@ -1,5 +1,5 @@
 """
-Generate images (base model or with LoRA adapters)
+Generate images with base model or with LoRA adapters.
 
 Reads configs/inference.yaml, builds the inference pipeline (optionally injecting
 lora adapters from a specific run), and runs txt2img or img2img based on whether

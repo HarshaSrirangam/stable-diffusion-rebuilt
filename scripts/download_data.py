@@ -1,43 +1,43 @@
 """
 Downloads the following (skips existing):
-    1. StableDiffusion 1.5 checkpoint
-    2. persian miniature image dataset + BLIP captions
+    1. StableDiffusion 1.5 checkpoint -> data/weights
+    2. Persian miniature painting raw images from Wikimedia commons
+    (entire tree) -> data/persian/raw/
 
 Usage:
-    uv run scripts/download_data.py
+    uv run python scripts/download_data.py                 # all
+    uv run python scripts/download_data.py --no-ckpt       # no SD1.5 checkpoint
+    uv run python scripts/download_data.py --no-persian    # no Persian mini paintings
 """
 
 import io
-import json
 import time
 from pathlib import Path
 from collections import deque
 import argparse
 
 import requests
-import torch
 from huggingface_hub import hf_hub_download
 from PIL import Image
-from transformers import BlipForConditionalGeneration, BlipProcessor
 from tqdm import tqdm
 
 
 API = "https://commons.wikimedia.org/w/api.php"
 HEADERS = {"User-Agent": "sdrebuilt-persian/1.0 (https://github.com/HarshaSrirangam/stable-diffusion-rebuilt)"}
 
-def api_get(params, retries=5):
-    # wikimedia rate-limits + sometimes returns html instead of json.
-    # retry with exponential backoff until we get parseable json
+def api_get(params, retries=8):
+    # wikimedia rate-limits anD sometimes returns html instead of json
+    # retry with exponential backoff until parseable json is returned
     for attempt in range(retries):
         r = requests.get(API, params=params, headers=HEADERS)
         try:
             return r.json()
         except ValueError:
-            time.sleep(2 ** attempt)
+            time.sleep(min(2 ** attempt, 30))
     raise RuntimeError(f"api_get failed after {retries} retries: {params}")
 
 def category_members(category, cmtype):
-    # list every member of a category (files or subcats), paginating through continue-tokens
+    # list every member of a category (files or subcategoriess), paginating with continue-tokens
     members = []
     cont = {}
     while True:
@@ -50,33 +50,48 @@ def category_members(category, cmtype):
         cont = r.get("continue")
         if not cont:
             break
-        time.sleep(0.1)
+        time.sleep(0.3)
     return members
 
-def collect_files(root, n_images, max_depth=5):
-    # BFS over the category tree: grab files at each level, descend into subcats
+def collect_files(root, max_depth=5):
+    # BFS the whole category tree
+    # skip (dont crash on) a category that stays throttled through all retries
     titles = []
     seen = set()
     queue = deque([(root, 0)])
-    while queue and len(titles) < n_images:
+    while queue:
         category, depth = queue.popleft()
         if category in seen:
             continue
         seen.add(category)
+        try:
+            titles += category_members(category, cmtype="file")
+            if depth < max_depth:
+                for sub in category_members(category, cmtype="subcat"):
+                    queue.append((sub, depth + 1))
+        except RuntimeError as e:
+            print("  skip category", category, e)
+            time.sleep(5)
+    return list(dict.fromkeys(titles))
 
-        titles += category_members(category, cmtype="file")
-        if depth < max_depth:
-            for sub in category_members(category, cmtype="subcat"):
-                queue.append((sub, depth + 1))
-    return titles[:n_images]
-
-def image_url(title):
-    # resolve a File: title to its actual download url
+def image_url(title, width=768):
+    # ask the api for a downscaled thumbnail url
     info = api_get({
         "action": "query", "titles": title,
-        "prop": "imageinfo", "iiprop": "url", "format": "json",
+        "prop": "imageinfo", "iiprop": "url", "iiurlwidth": width,
+        "format": "json",
     })
-    return next(iter(info["query"]["pages"].values()))["imageinfo"][0]["url"]
+    ii = next(iter(info["query"]["pages"].values()))["imageinfo"][0]
+    return ii.get("thumburl", ii["url"])
+
+def download_bytes(url, retries=5):
+    # retry with backoff
+    for attempt in range(retries):
+        r = requests.get(url, headers=HEADERS)
+        if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
+            return r.content
+        time.sleep(2 ** attempt)
+    return None
 
 
 def download_checkpoint():
@@ -95,57 +110,45 @@ def download_checkpoint():
         local_dir=str(destination)
     )
 
-def download_persian(n_images=1200):
-    destination = Path("data/persian")
-    if (destination / "metadata.jsonl").exists():
+def download_persian():
+    raw_dir = Path("data/persian/raw")
+    if raw_dir.exists() and any(raw_dir.glob("*.jpg")):
         print(f"Skipping persian")
         return
     print(f"Downloading persian")
-    destination.mkdir(parents=True, exist_ok=True)
-    (destination / "images").mkdir(parents=True, exist_ok=True)
+    raw_dir.mkdir(parents=True, exist_ok=True)
 
-    # walk the "Persian miniatures" category tree for image filenames
+    # walk the entire "Persian miniatures" category tree
     print("listing persian miniature images from Wikimedia Commons")
-    titles = collect_files("Category:Persian miniatures", n_images)
+    titles = collect_files("Category:Persian miniatures")
+    print(f"pool size after dedupe: {len(titles)}")
 
-    # load BLIP
-    print("loading BLIP")
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    processor = BlipProcessor.from_pretrained("Salesforce/blip-image-captioning-large")
-    blip = BlipForConditionalGeneration.from_pretrained(
-        "Salesforce/blip-image-captioning-large"
-    ).to(device)
-
-    # download each image, generate caption with BLIP, save image and metadata
-    print(f"Downloading + captioning up to {len(titles)} images")
+    # download every image that passes the 256px filter
+    print(f"Downloading {len(titles)} images")
     idx = 0
-    with open(destination / "metadata.jsonl", "w") as meta:
-        for title in tqdm(titles, desc="downloading + captioning"):
-            try:
-                url = image_url(title)
+    for title in tqdm(titles, desc="downloading"):
+        try:
+            if not title.lower().endswith((".jpg", ".jpeg", ".png")):
+                continue
+            raw = download_bytes(image_url(title))
+            if raw is None:
+                print("  skip", title, "bad response")
+                continue
+            img = Image.open(io.BytesIO(raw)).convert("RGB")
+            if min(img.size) < 256:
+                continue
+            img.save(raw_dir / f"{idx:04d}.jpg")
+            idx += 1
+        except Exception as e:
+            print("  skip", title, e)
+        time.sleep(0.1)
+    print(f"Saved {idx} images to {raw_dir}")
 
-                raw = requests.get(url, headers=HEADERS).content
-                img = Image.open(io.BytesIO(raw)).convert("RGB")
-                if min(img.size) < 256:
-                    continue
-
-                inp = processor(img, return_tensors="pt").to(device)
-                cap = processor.decode(blip.generate(**inp, max_new_tokens=30)[0], skip_special_tokens=True)
-
-                fname = f"images/{idx:04d}.jpg"
-                img.save(destination / fname)
-                meta.write(json.dumps({"file_name": fname, "text": cap}) + "\n")
-                idx += 1
-            except Exception as e:
-                print("  skip", title, e)
-            time.sleep(0.1)
-    print(f"Saved {idx} image/caption pairs to {destination}")
-
-def main(ckpt=True, persian=True, persian_count=1200):
+def main(ckpt=True, persian=True):
     if ckpt:
         download_checkpoint()
     if persian:
-        download_persian(n_images=persian_count)
+        download_persian()
     return
 
 
@@ -153,10 +156,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--ckpt", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--persian", action=argparse.BooleanOptionalAction, default=True)
-    parser.add_argument("--persian-count", type=int, default=1200)
     args=parser.parse_args()
     main(
         ckpt=args.ckpt,
-        persian=args.persian,
-        persian_count=args.persian_count
+        persian=args.persian
     )
