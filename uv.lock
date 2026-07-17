@@ -2631,6 +2631,7 @@ dev = [
     { name = "diffusers" },
     { name = "ipykernel" },
     { name = "isort" },
+    { name = "pillow" },
     { name = "ruff" },
     { name = "stable-diffusion-rebuilt" },
 ]
@@ -2656,6 +2657,7 @@ dev = [
     { name = "diffusers", specifier = ">=0.38.0" },
     { name = "ipykernel", specifier = ">=7.3.0" },
     { name = "isort", specifier = ">=8.0.1" },
+    { name = "pillow", specifier = ">=12.2.0" },
     { name = "ruff", specifier = ">=0.15.16" },
     { name = "stable-diffusion-rebuilt", editable = "." },
 ]

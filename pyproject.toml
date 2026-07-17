@@ -33,6 +33,7 @@ dev = [
     "stable-diffusion-rebuilt",
     "ipykernel>=7.3.0",
     "diffusers>=0.38.0",
+    "pillow>=12.2.0",
 ]
 
 [tool.black]
