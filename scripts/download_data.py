@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 from collections import deque
 import argparse
-
 import requests
 from huggingface_hub import hf_hub_download
 from PIL import Image
@@ -26,10 +25,10 @@ API = "https://commons.wikimedia.org/w/api.php"
 HEADERS = {"User-Agent": "sdrebuilt-persian/1.0 (https://github.com/HarshaSrirangam/stable-diffusion-rebuilt)"}
 
 def api_get(params, retries=8):
-    # wikimedia rate-limits anD sometimes returns html instead of json
+    # wikimedia rate-limits and sometimes returns html instead of json
     # retry with exponential backoff until parseable json is returned
     for attempt in range(retries):
-        r = requests.get(API, params=params, headers=HEADERS)
+        r = requests.get(API, params=params, headers=HEADERS, timeout=30)
         try:
             return r.json()
         except ValueError:
@@ -87,7 +86,7 @@ def image_url(title, width=768):
 def download_bytes(url, retries=5):
     # retry with backoff
     for attempt in range(retries):
-        r = requests.get(url, headers=HEADERS)
+        r = requests.get(url, headers=HEADERS, timeout=30)
         if r.status_code == 200 and r.headers.get("content-type", "").startswith("image/"):
             return r.content
         time.sleep(2 ** attempt)
