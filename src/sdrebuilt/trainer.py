@@ -85,6 +85,10 @@ class Trainer:
                 # backprop, optimizer step
                 self.optimizer.zero_grad()
                 loss.backward()
+                torch.nn.utils.clip_grad_norm_(
+                    [p for p in self.unet.parameters() if p.requires_grad],
+                    max_norm=1.0
+                )
                 self.optimizer.step()
 
                 # loss logging
