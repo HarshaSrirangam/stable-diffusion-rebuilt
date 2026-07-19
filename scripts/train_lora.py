@@ -3,7 +3,7 @@ Train a LoRA adapter.
 
 Reads configs/lora.yaml, freezes base model, injects LoRA layers into
 the UNet (target layers specified in config), and trains on the config dataset.
-Writes checkpoints/, losses.json, and config.yaml to runs/<run_name>.
+Writes checkpoints/, losses.json, and training_config.yaml to runs/<run_name>.
 
 Usage:
     uv run python scripts/train_lora.py
@@ -28,7 +28,7 @@ from transformers import CLIPTokenizer
 from transformers.utils import logging as hf_logging
 
 from sdrebuilt.convert_weights import load_clip, load_unet, load_vae
-from sdrebuilt.dataset import ImageCaptionDataset
+from sdrebuilt.dataset import precompute
 from sdrebuilt.lora.utils import inject_lora
 from sdrebuilt.model.autoencoder import Autoencoder
 from sdrebuilt.model.clip import CLIP
@@ -46,57 +46,6 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def log(msg: str) -> None:
     print(f"\n>>> {msg}")
-
-
-@torch.no_grad()
-def precompute(config, cache_path: Path) -> None:
-    """
-    Precomputes and saves images->latents and captions->clip embeddings to disk.
-    """
-    log("Precomputing image/caption embeddings (no cache found)")
-    # build frozen encoders
-    device = config["device"]
-    pretrained_path = ROOT / config["pretrained_path"]
-    vae = Autoencoder().eval().requires_grad_(False)
-    load_vae(path=pretrained_path, vae=vae)
-    vae.to(device)
-    clip = CLIP().eval().requires_grad_(False)
-    load_clip(path=pretrained_path, clip=clip)
-    clip.to(device)
-    tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
-
-    # build raw dataset from config
-    dataset = ImageCaptionDataset(
-        dataset=config["dataset"],
-        image_size=512,
-    )
-    loader = DataLoader(dataset, batch_size=config["batch_size"])
-
-    # encode data
-    latents_list, context_list = [], []
-    pbar = tqdm(loader, desc="Encoding image/caption batches", colour="blue")
-    for batch in pbar:
-        images = batch["image"].to(device)
-        captions = batch["caption"]
-        tokens = tokenizer(
-            captions,
-            padding="max_length",
-            max_length=77,
-            truncation=True,
-            return_tensors="pt",
-        )["input_ids"].to(device=device, dtype=torch.long)
-        encoder_noise = torch.randn((images.size(0), 4, 64, 64), device=device)
-        latents_list.append(vae.encode(images, encoder_noise).cpu())
-        context_list.append(clip(tokens).cpu())
-    vae.to("cpu")
-    clip.to("cpu")
-    torch.cuda.empty_cache()
-
-    # save embeddings to disk
-    latents = torch.cat(latents_list)  # (B, 4, 64, 64)
-    context = torch.cat(context_list)  # (B, 77, 768)
-    cache_path.parent.mkdir(parents=True, exist_ok=True)
-    torch.save({"latents": latents, "context": context}, cache_path)
 
 
 def main():
@@ -149,9 +98,17 @@ def main():
     )
     # build dataset and dataloader
     log("Preparing dataset")
-    cache_path = ROOT / "data" / "cache" / f"{config['dataset']}.pt"
+    cache_path = ROOT / "data" / "cache" / f"{config['dataset']}_train.pt"
     if not cache_path.exists():
-        precompute(config=config, cache_path=cache_path)
+        log("Precomputing image/caption embeddings (no cache found)")
+        precompute(
+            pretrained_path=ROOT / config["pretrained_path"],
+            dataset=config["dataset"],
+            split="train",
+            batch_size=config["batch_size"],
+            device=config["device"],
+            cache_path=cache_path
+        )
     data = torch.load(cache_path)
     dataset = TensorDataset(data["latents"], data["context"])
     train_loader = DataLoader(dataset, batch_size=config["batch_size"], shuffle=True)
