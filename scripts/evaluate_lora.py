@@ -295,4 +295,4 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--run", type=str, required=True)
     args = parser.parse_args()
-    main(run_dir=ROOT / args.run)
+    main(run_dir=ROOT / "runs" / args.run)
