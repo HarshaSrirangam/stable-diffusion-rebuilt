@@ -233,22 +233,28 @@ def main(run_dir: Path):
 
     # ii) CLIP style adherence
     log("Computing CLIP style adherence")
-    eval_imgs_path = ROOT / "data/persian/eval/images"
-    paths = sorted((eval_imgs_path).glob("*.jpg"))  # all ~150 image paths
-    eval_imgs = [Image.open(p).convert("RGB") for p in paths]
+    clip_cache = ROOT / "data" / "cache" / f"{lora_cfg['dataset']}_eval_clip.pt"
     with torch.no_grad():
-        inp = clip_proc(
-            images=eval_imgs,
-            return_tensors="pt",
-        ).to(device)
-        eval_embs = clip_model.get_image_features(**inp)  # (len(eval_imgs), d_embed)
+        if clip_cache.exists():
+            eval_embs = torch.load(clip_cache).to(device)
+        else:
+            paths = sorted((ROOT / "data/persian/eval/images").glob("*.jpg"))
+            eval_imgs = [Image.open(p).convert("RGB") for p in paths]
+            inp = clip_proc(
+                text=[""] * len(eval_imgs),
+                images=eval_imgs,
+                return_tensors="pt",
+                padding=True,
+            ).to(device)
+            eval_embs = clip_model(**inp).image_embeds  # (n_eval, d_embed)
+            clip_cache.parent.mkdir(parents=True, exist_ok=True)
+            torch.save(eval_embs.cpu(), clip_cache)
         eval_emb = (eval_embs / eval_embs.norm(dim=-1, keepdim=True)).mean(
             0
         )  # (d_embed,)
-        # cosine similarity
-        dot_prods = (img_emb * eval_emb.unsqueeze(0)).sum(dim=1)  # (n_prompts,)
-        eval_mag = eval_emb.norm(dim=-1, keepdim=True)  # (1,)
-        cosines = dot_prods / (eval_mag * img_mag)  # (n_prompts,)
+        dot_prods = (img_emb * eval_emb.unsqueeze(0)).sum(dim=1)
+        eval_mag = eval_emb.norm(dim=-1, keepdim=True)
+        cosines = dot_prods / (eval_mag * img_mag)
         style_adherence = cosines.mean().item()
 
     # iii) eval dataset noise pred
