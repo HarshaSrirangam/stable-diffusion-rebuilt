@@ -21,6 +21,7 @@ data/
 *.egg-info/
 
 # other
+assets
 notebooks/scratch/*
 scripts/lint.sh
 runs
