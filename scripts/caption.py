@@ -15,15 +15,25 @@ Usage:
     uv run python scripts/caption.py --data-dir data/persian/<pool>
 """
 
+import os
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
 import argparse
 import json
 import re
 from pathlib import Path
 
+import huggingface_hub
 import torch
 from PIL import Image
 from tqdm import tqdm
 from transformers import BlipForConditionalGeneration, BlipProcessor
+from transformers.utils import logging as hf_logging
+
+hf_logging.set_verbosity_error()
+huggingface_hub.logging.set_verbosity_error()
 
 ROOT = Path(__file__).resolve().parents[1]
 BATCH_SIZE = 16  # BLIP batch size
@@ -82,7 +92,7 @@ def log(msg: str) -> None:
 
 def main(data_dir: Path):
     # 1) Generate BLIP captions
-    images_dir = data_dir / "images" # images are here
+    images_dir = data_dir / "images"  # images are here
     if not images_dir.exists():
         raise FileNotFoundError("Images folder not found")
     meta_raw_path = data_dir / "metadata_raw.jsonl"

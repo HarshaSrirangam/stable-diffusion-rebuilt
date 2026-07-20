@@ -8,14 +8,24 @@ Usage:
     uv run python scripts/filter_persian.py --data-dir data/persian/raw
 """
 
+import os
+
+os.environ["HF_HUB_DISABLE_PROGRESS_BARS"] = "1"
+os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+
 import argparse
 import shutil
 from pathlib import Path
 
+import huggingface_hub
 import numpy as np
 import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
+from transformers.utils import logging as hf_logging
+
+hf_logging.set_verbosity_error()
+huggingface_hub.logging.set_verbosity_error()
 
 
 def main(data_dir: Path):
