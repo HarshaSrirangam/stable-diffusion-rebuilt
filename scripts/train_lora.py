@@ -65,7 +65,7 @@ def main():
         existing_frozen_cfg = yaml.safe_load(open(frozen_cfg))
         if config == existing_frozen_cfg:
             print(
-                f">>> run '{run_name} already trained with identical config. Skipping."
+                f">>> run '{run_name}' already trained with identical config. Skipping."
             )
             return
         raise FileExistsError(
