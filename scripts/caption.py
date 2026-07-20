@@ -1,16 +1,18 @@
 """
 Generate captions for a folder of images with BLIP and clean them.
 
-Reads every .jpg in --images-dir, generates a caption for each with BLIP, and
+Reads every .jpg in data_dir/images, generates a caption for each with BLIP, and
 strips the prefix phrases (e.g. "a painting of", "a page of a manuscript with")
-to allow LoRA to learn style without trigger words. Run on GPU is preferred.
+to allow LoRA to learn style without trigger words. Run on GPU is preferred. Note
+that this script requires data_dir/images to be pre-populated with the outputs
+of scrape.py or other images.
 
-Outputs (to --images-dir's parent, e.g. data/persian/<pool>):
+Outputs (to data_dir):
     metadata.jsonl          Cleaned BLIP captions.
     metadata_raw.jsonl      Raw BLIP captions.
 
 Usage:
-    uv run python scripts/caption.py --images-dir data/persian/<pool>/images
+    uv run python scripts/caption.py --data-dir data/persian/<pool>
 """
 
 import argparse
@@ -78,9 +80,11 @@ def log(msg: str) -> None:
     print(f"\n>>> {msg}")
 
 
-def main(images_dir: Path):
+def main(data_dir: Path):
     # 1) Generate BLIP captions
-    data_dir = images_dir.parent  # metadata.jsonl goes here
+    images_dir = data_dir / "images" # images are here
+    if not images_dir.exists():
+        raise FileNotFoundError("Images folder not found")
     meta_raw_path = data_dir / "metadata_raw.jsonl"
     if (meta_raw_path).exists():
         raise FileExistsError("metadata_raw.jsonl already exists")
@@ -145,6 +149,6 @@ def main(images_dir: Path):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--images-dir", type=str, required=True)
+    parser.add_argument("--data-dir", type=str, required=True)
     args = parser.parse_args()
-    main(images_dir=ROOT / args.images_dir)
+    main(data_dir=ROOT / args.data_dir)

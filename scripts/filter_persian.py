@@ -5,9 +5,10 @@ photos of people, artifacts, etc.) are moved to data/persian/rejected. Runnable
 on CPU.
 
 Usage:
-    uv run python scripts/filter_persian.py
+    uv run python scripts/filter_persian.py --data-dir data/persian/raw
 """
 
+import argparse
 import shutil
 from pathlib import Path
 
@@ -17,11 +18,13 @@ from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
 
 
-def main():
-    raw = Path("data/persian/raw")
-    images = raw / "images"
-    rej = raw.parent / "rejected"
-    rej.mkdir(exist_ok=True)
+def main(data_dir: Path):
+    raw_dir = data_dir
+    images_dir = raw_dir / "images"
+    if not images_dir.exists():
+        raise FileNotFoundError("Images folder not found")
+    rej_dir = raw_dir.parent / "rejected"
+    rej_dir.mkdir(exist_ok=True)
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device).eval()
@@ -46,7 +49,7 @@ def main():
     prompts = KEEP + REJECT
     n_keep = len(KEEP)  # max index to keep
 
-    files = sorted(images.glob("*.jpg"))
+    files = sorted(images_dir.glob("*.jpg"))
     B = 64  # batch size
     SAT = 0.10  # saturation threshold
     moved = 0
@@ -63,7 +66,7 @@ def main():
                 np.asarray(img.convert("HSV"), dtype="float32")[:, :, 1].mean() / 255.0
             )
             if sat < SAT:
-                shutil.move(str(img_path), str(rej / img_path.name))
+                shutil.move(str(img_path), str(rej_dir / img_path.name))
                 moved += 1
                 continue
             imgs.append(img)
@@ -81,15 +84,19 @@ def main():
             )  # (B, len(prompts)) -> (B,)
         for img_path, b in zip(success, best, strict=True):
             if b >= n_keep:  # move if max logit is for a reject prompt
-                shutil.move(str(img_path), str(rej / img_path.name))
+                shutil.move(str(img_path), str(rej_dir / img_path.name))
                 moved += 1
         print(f"{min(i+B,len(files))}/{len(files)}  moved: {moved}", end="\r")
 
     print(
-        f"\ndone. moved {moved} images to {rej}, "
-        f"kept {len(list(images.glob('*.jpg')))}"
+        f"\ndone. moved {moved} images to {rej_dir}, "
+        f"kept {len(list(images_dir.glob('*.jpg')))}"
     )
 
 
 if __name__ == "__main__":
-    main()
+    ROOT = Path(__file__).resolve().parents[1]
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-dir", type=str, required=True)
+    args = parser.parse_args()
+    main(data_dir=ROOT / args.data_dir)
