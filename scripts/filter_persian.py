@@ -1,5 +1,5 @@
 """
-Filters raw images in data/persian/raw by comparing its CLIP embedding
+Filters raw images in data/persian/raw by comparing their CLIP embeddings
 to CLIP embeddings of keep/reject prompts. Likely junk images (photos of books,
 photos of people, artifacts, etc.) are moved to data/persian/rejected. Runnable
 on CPU.
@@ -11,6 +11,7 @@ Usage:
 import shutil
 from pathlib import Path
 
+import numpy as np
 import torch
 from PIL import Image
 from transformers import CLIPModel, CLIPProcessor
@@ -18,6 +19,7 @@ from transformers import CLIPModel, CLIPProcessor
 
 def main():
     raw = Path("data/persian/raw")
+    images = raw / "images"
     rej = raw.parent / "rejected"
     rej.mkdir(exist_ok=True)
 
@@ -44,8 +46,9 @@ def main():
     prompts = KEEP + REJECT
     n_keep = len(KEEP)  # max index to keep
 
-    files = sorted(raw.glob("*.jpg"))
-    B = 64
+    files = sorted(images.glob("*.jpg"))
+    B = 64  # batch size
+    SAT = 0.10  # saturation threshold
     moved = 0
     for i in range(0, len(files), B):
         chunk = files[i : i + B]  # batch of images
@@ -53,10 +56,18 @@ def main():
         success = []  # successfully opened image filepaths
         for img_path in chunk:  # iter over images
             try:
-                imgs.append(Image.open(img_path).convert("RGB"))
-                success.append(img_path)
+                img = Image.open(img_path).convert("RGB")
             except Exception:
-                pass
+                continue
+            sat = (
+                np.asarray(img.convert("HSV"), dtype="float32")[:, :, 1].mean() / 255.0
+            )
+            if sat < SAT:
+                shutil.move(str(img_path), str(rej / img_path.name))
+                moved += 1
+                continue
+            imgs.append(img)
+            success.append(img_path)
         if not imgs:
             continue
         inputs = processor(
@@ -75,7 +86,8 @@ def main():
         print(f"{min(i+B,len(files))}/{len(files)}  moved: {moved}", end="\r")
 
     print(
-        f"\ndone. moved {moved} images to {rej} ; kept {len(list(raw.glob('*.jpg')))}"
+        f"\ndone. moved {moved} images to {rej}, "
+        f"kept {len(list(images.glob('*.jpg')))}"
     )
 
 
