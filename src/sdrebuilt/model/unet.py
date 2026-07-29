@@ -84,8 +84,8 @@ class TransformerBlock(nn.Module):
 
         self.layernorm3 = nn.LayerNorm(channels)
 
-        self.linear_geglu1 = nn.Linear(channels, 4 * channels * 2)
-        self.linear_geglu2 = nn.Linear(4 * channels, channels)
+        self.geglu_in = nn.Linear(channels, 4 * channels * 2)
+        self.geglu_out = nn.Linear(4 * channels, channels)
 
         self.proj_out = nn.Conv2d(channels, channels, kernel_size=1, padding=0)
 
@@ -146,9 +146,9 @@ class TransformerBlock(nn.Module):
         x = self.layernorm3(x)
 
         # 3) GeGLU FEED FORWARD
-        x, gate = self.linear_geglu1(x).chunk(2, dim=-1)
+        x, gate = self.geglu_in(x).chunk(2, dim=-1)
         x = x * F.gelu(gate)
-        x = self.linear_geglu2(x)
+        x = self.geglu_out(x)
 
         x = x + residual1
 
