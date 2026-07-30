@@ -9,20 +9,21 @@ wheels/
 # Virtual environments
 .venv
 
-# data
+# data/weights
 data/
 *.pt
 *.ckpt
 *.safetensors
+runs
+runs/
+weights/
+outputs/
 
-# caches etc
+# caches
 .DS_Store
 **/.ruff_cache/
 *.egg-info/
 
 # other
-assets
 notebooks/scratch/*
-scripts/lint.sh
-runs
-runs/
+lint.sh
