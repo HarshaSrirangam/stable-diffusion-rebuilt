@@ -23,15 +23,11 @@ import torch
 import torch.optim as optim
 import yaml
 from torch.utils.data import DataLoader, TensorDataset
-from tqdm import tqdm
-from transformers import CLIPTokenizer
 from transformers.utils import logging as hf_logging
 
-from sdrebuilt.convert_weights import load_clip, load_unet, load_vae
+from sdrebuilt.convert_weights import load_unet
 from sdrebuilt.dataset import precompute
 from sdrebuilt.lora.utils import inject_lora
-from sdrebuilt.model.autoencoder import Autoencoder
-from sdrebuilt.model.clip import CLIP
 from sdrebuilt.model.unet import UNet
 from sdrebuilt.samplers.ddpm import DDPM
 from sdrebuilt.trainer import Trainer
@@ -107,7 +103,7 @@ def main():
             split="train",
             batch_size=config["batch_size"],
             device=config["device"],
-            cache_path=cache_path
+            cache_path=cache_path,
         )
     data = torch.load(cache_path)
     dataset = TensorDataset(data["latents"], data["context"])
