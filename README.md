@@ -1,9 +1,7 @@
 # Stable Diffusion 1.5 reimplemented from scratch in PyTorch and LoRA finetuned on Persian miniature paintings
 
 <p align="center">
-  <img src="assets/garden.png" width="32%" />
-  <img src="assets/feast.png"   width="32%" />
-  <img src="assets/battle.png"  width="32%" />
+  <img src="assets/panel.png" width="90%" />
 </p>
 
 A from-scratch reimplementation of Stable Diffusion 1.5 in PyTorch: the VAE, CLIP text
