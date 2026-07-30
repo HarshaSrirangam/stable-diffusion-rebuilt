@@ -17,7 +17,7 @@ def main(base: bool, lora: bool):
         print("Downloading persian miniature lora weights")
         hf_hub_download("HarshaSrirangam/persian-miniature-lora",
                         "persian_lora.safetensors", local_dir=WEIGHTS)
-    print("Done. Saved to weights/")
+    print("Done. Saved to data/weights/")
 
 
 if __name__ == "__main__":
