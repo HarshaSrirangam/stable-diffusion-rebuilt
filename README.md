@@ -19,6 +19,13 @@ the base model into a Persian-miniature style adapter.
 - txt2img and img2img inference
 - Persian-miniature LoRA: trained on scraped and cleaned images from Wikimedia Commons
 
+## Finetuning setup
+- GPU: a single Colab A100
+- Mixed precision: bf16 autocast
+- Optimizer: AdamW, lr 1e-4 (standard for LoRA), batch size 8
+- Gradient clipping (max norm 1.0)
+- Data: 1300 train / 165 eval images at 512x512px
+
 ## Results
 
 ### How I ran experiments
@@ -30,6 +37,7 @@ To do so, I finetuned LoRA adapters varying three degrees of freedom between exp
 (which layers in the base model get an attached LoRA layer, e.g. q/k/v/out proj self-attention 
 layers). Each run is scored by `scripts/evaluate_lora.py`, which generates images on a fixed set
 of prompts and computes the three metrics below:
+
   1. Val-loss ratio: LoRA / base model noise prediction MSE on held-out eval images (< 1.0 is better)
   2. Prompt adherence: avg. cosine similarity between the CLIP embeddings of generated images and their eval prompts (higher = matches prompt better)
   3. Style adherence: avg. cosine similarity between the CLIP embeddings of generated images and the mean CLIP embedding of the held-out eval images (higher = closer to the Persian-miniature style)
@@ -50,12 +58,10 @@ The per-experiment metrics are as follows (each row is an experiment):
 | 32 | 32 | self + cross | 1.0072 | 0.267 | 0.630 |
 | 32 | 16 | self + cross + FFN | 0.9981 | 0.284 | 0.738 |
 
-
 ### Winning configuration
 
 The winning configuration was r16, alpha 8, with LoRA layers injected into the self-attention and cross-attention projections and the FFN linear layers. A few patterns showed up across the experiments. Small corrections (a low alpha relative to r) looked the best visually regardless of rank, while high capacity paired with a high correction (r32, alpha 32) was oversaturated and came out worst on every metric, with the lowest style adherence, the lowest prompt adherence, and the only val-loss ratio above 1.0. Regarding where to inject LoRA layers, only self-attention did not learn the style very well, which follows because cross-attention is where information flows between the image and the prompt. Cross-attention alone did learn the style well, and adding self-attention and the FFN on top of it performed better. On the metrics, the base model has close to the best prompt adherence and the lowest style adherence by a clear margin, which is the tradeoff I expected since the adapter pulls the outputs toward the Persian miniature style at a small cost to prompt adherence. r16 alpha 8 found the best balance of the two. It is one of the best on both metrics without being the single best on either, and it also looked the best visually, with r32 alpha 16 being a close contender. I did not pick the run with the highest style adherence because it sacrificed too much prompt adherence, while r16 alpha 8 was both better balanced and nicer to look at.
 
- 
 **Base vs. LoRA** (LoRA r16 alpha 8 self + cross + FFN, same prompt and seed):
 
 <p align="center">
@@ -88,13 +94,13 @@ Point `input_image` to a file path for img2img, leave as `null` for txt2img. See
 ## Reproducing the LoRA adapter
 
 ```bash
-# build the dataset (scrape, filter, caption), or download the published parquet dataset from HuggingFace
-#   see notebooks/build_dataset.ipynb  (GPU recommended for captioning)
+# build the dataset from scratch or download the published dataset from HuggingFace
+#   see notebooks/build_dataset.ipynb  (GPU recommended for captioning if building from scratch)
 
-# train a LoRA run (edit configs/lora.yaml, writes to runs/<name>/)
+# train a LoRA adapter (edit configs/lora.yaml, train_lora.py writes to runs/<run_name>/)
 uv run python scripts/train_lora.py
 
-# evaluate a run (metrics + eval grid, writes to runs/<run>/eval/)
+# evaluate a run (metrics + eval grid, evaluate_lora.py writes to runs/<run_name>/eval/)
 uv run python scripts/evaluate_lora.py --run <run_name>
 
 # export a run's checkpoint
