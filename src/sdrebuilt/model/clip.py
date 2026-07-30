@@ -67,7 +67,10 @@ class CLIP(nn.Module):
         self.token_embedding_table = nn.Embedding(vocab_size, d_model)
         self.position_embedding_table = nn.Embedding(max_seq_len, d_model)
         self.transformer_blocks = nn.ModuleList(
-            [TransformerBlock(n_heads=n_heads, d_model=d_model) for _ in range(n_blocks)]
+            [
+                TransformerBlock(n_heads=n_heads, d_model=d_model)
+                for _ in range(n_blocks)
+            ]
         )
         self.layernorm = nn.LayerNorm(d_model)
 

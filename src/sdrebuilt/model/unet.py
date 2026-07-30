@@ -26,8 +26,7 @@ class TimeEmbedding(nn.Module):
         half_d_time = d_time // 2
         freqs = torch.pow(
             10000,
-            -torch.arange(start=0, end=half_d_time, dtype=torch.float32)
-            / half_d_time,
+            -torch.arange(start=0, end=half_d_time, dtype=torch.float32) / half_d_time,
         )
         self.register_buffer("freqs", freqs, persistent=False)
         self.linear1 = nn.Linear(d_time, 4 * d_time)
@@ -69,7 +68,7 @@ class TransformerBlock(nn.Module):
         self.layernorm1 = nn.LayerNorm(channels)
 
         # key bias is canceled out in softmax, so exclude it
-        # query and value biases have a negligible contribution 
+        # query and value biases have a negligible contribution
         self.q1 = nn.Linear(channels, channels, bias=False)
         self.k1 = nn.Linear(channels, channels, bias=False)
         self.v1 = nn.Linear(channels, channels, bias=False)
@@ -107,7 +106,7 @@ class TransformerBlock(nn.Module):
         k1 = self.k1(x).reshape(b, h * w, self.n_heads, self.d_k).transpose(1, 2)
         v1 = self.v1(x).reshape(b, h * w, self.n_heads, self.d_k).transpose(1, 2)
 
-        x = F.scaled_dot_product_attention(q1, k1, v1) # (B, n_heads, H*W, d_k)
+        x = F.scaled_dot_product_attention(q1, k1, v1)  # (B, n_heads, H*W, d_k)
 
         # merge heads
         x = x.transpose(1, 2).contiguous()

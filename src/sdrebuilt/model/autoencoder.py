@@ -27,7 +27,7 @@ class UpSample(nn.Module):
 
 
 class ResBlock(nn.Module):
-    """VAE residual block for learning local features and increasing channels."""
+    """VAE residual block."""
 
     def __init__(self, in_channels, out_channels):
         super().__init__()
@@ -59,7 +59,7 @@ class ResBlock(nn.Module):
 
 
 class AttnBlock(nn.Module):
-    """VAE single-head attention block with residual connection for learning global image features."""
+    """VAE single-head attention block with residual connection."""
 
     def __init__(self, channels):
         super().__init__()
@@ -124,7 +124,8 @@ class Encoder(nn.Module):
             ResBlock(512, 512),
             nn.GroupNorm(32, 512),
             nn.SiLU(),
-            # 512 -> 8 latent channels (first 4 channels are 4 means, second 4 channels are 4 log variances)
+            # 512 -> 8 latent channels (first 4 channels are 4 means, second 4
+            # channels are 4 log variances)
             # for each of the 4 latent variables
             nn.Conv2d(512, 8, kernel_size=3, padding=1),
         )
