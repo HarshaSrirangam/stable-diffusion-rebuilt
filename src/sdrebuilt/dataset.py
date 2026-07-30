@@ -1,15 +1,15 @@
 from pathlib import Path
 
 import torch
-from torch.utils.data import Dataset, DataLoader
-from transformers import CLIPTokenizer
-from torchvision import transforms
 from datasets import load_dataset
+from torch.utils.data import DataLoader, Dataset
+from torchvision import transforms
 from tqdm import tqdm
+from transformers import CLIPTokenizer
 
+from .convert_weights import load_clip, load_vae
 from .model.autoencoder import Autoencoder
 from .model.clip import CLIP
-from .convert_weights import load_vae, load_clip
 
 
 class ImageCaptionDataset(Dataset):
@@ -22,22 +22,19 @@ class ImageCaptionDataset(Dataset):
         split: training or eval split, used only for persian
         image_size: square size images are resized to
     """
-    def __init__(
-            self,
-            dataset: str,
-            split: str = "train",
-            image_size: int = 512
-        ):
-        self.transform = transforms.Compose([
-            transforms.Lambda(lambda img: img.convert("RGB")), # 3 channels
-            transforms.Resize(image_size), # shorter side -> 512
-            transforms.CenterCrop(image_size), # -> 512x512, no distortion
-            transforms.ToTensor(), # PIL -> (3, H, W) float tensor in [0, 1]
-            transforms.Normalize(
-                mean=[0.5, 0.5, 0.5],
-                std=[0.5, 0.5, 0.5]
-            ) # [0, 1] -> [-1, 1] for VAE/UNet
-        ])
+
+    def __init__(self, dataset: str, split: str = "train", image_size: int = 512):
+        self.transform = transforms.Compose(
+            [
+                transforms.Lambda(lambda img: img.convert("RGB")),  # 3 channels
+                transforms.Resize(image_size),  # shorter side -> 512
+                transforms.CenterCrop(image_size),  # -> 512x512, no distortion
+                transforms.ToTensor(),  # PIL -> (3, H, W) float tensor in [0, 1]
+                transforms.Normalize(
+                    mean=[0.5, 0.5, 0.5], std=[0.5, 0.5, 0.5]
+                ),  # [0, 1] -> [-1, 1] for VAE/UNet
+            ]
+        )
 
         if dataset == "naruto":
             self.samples = self._load_naruto()
@@ -48,34 +45,36 @@ class ImageCaptionDataset(Dataset):
 
     def __len__(self):
         return len(self.samples)
-    
+
     def __getitem__(self, i):
         """
-        Naruto samples are accessed via samples[i]["image"] and 
+        Naruto samples are accessed via samples[i]["image"] and
         samples[i]["text"], so other custom dataset(s) was built
         to be indexed the same way.
         """
         return {
             "image": self.transform(self.samples[i]["image"]),
-            "caption": self.samples[i]["text"]
+            "caption": self.samples[i]["text"],
         }
 
     def _load_naruto(self):
         return load_dataset("lambdalabs/naruto-blip-captions", split="train")
 
     def _load_persian(self, split: str):
-        return load_dataset("imagefolder", data_dir=f"data/persian/{split}", split="train")
+        return load_dataset(
+            "imagefolder", data_dir=f"data/persian/{split}", split="train"
+        )
 
 
 @torch.no_grad()
 def precompute(
-        pretrained_path: Path,
-        dataset: str,
-        split: str,
-        batch_size: int,
-        device: torch.device,
-        cache_path: Path
-    ) -> None:
+    pretrained_path: Path,
+    dataset: str,
+    split: str,
+    batch_size: int,
+    device: torch.device,
+    cache_path: Path,
+) -> None:
     """
     Precomputes and saves images->latents and captions->clip embeddings to disk.
     """

@@ -14,7 +14,8 @@ from .samplers.ddpm import DDPM
 
 class Trainer:
     """
-    Finetune method-agnostic trainer class. Supports UNet finetuning only.
+    Finetune method-agnostic trainer class. Supports UNet finetuning only. Despite
+    being finetune method-agnostic, it is only used for LoRA finetuning here.
 
     Args:
         unet: UNet with only intended trainable params active
@@ -24,7 +25,7 @@ class Trainer:
         device: training device
         n_epochs: number of training epochs
         log_interval: number of batches between logging loss
-        run_dir: runs/<current_run>
+        run_dir: runs/<run>
     """
 
     def __init__(
@@ -86,8 +87,7 @@ class Trainer:
                 self.optimizer.zero_grad()
                 loss.backward()
                 torch.nn.utils.clip_grad_norm_(
-                    [p for p in self.unet.parameters() if p.requires_grad],
-                    max_norm=1.0
+                    [p for p in self.unet.parameters() if p.requires_grad], max_norm=1.0
                 )
                 self.optimizer.step()
 
@@ -96,13 +96,13 @@ class Trainer:
                     self.losses.append(loss.item())
 
             # save checkpoints every epoch
-            finetune_state = {
+            lora_state = {
                 name: param.detach().to(device=torch.device("cpu"))
                 for name, param in self.unet.named_parameters()
                 if param.requires_grad
             }
             checkpoint_path = self.run_dir / "checkpoints" / f"checkpoint-{epoch}.pt"
-            torch.save(finetune_state, checkpoint_path)
+            torch.save(lora_state, checkpoint_path)
 
         # save losses after training
         losses_path = self.run_dir / "losses.json"

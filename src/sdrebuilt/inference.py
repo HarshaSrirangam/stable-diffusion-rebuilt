@@ -1,14 +1,13 @@
 import numpy as np
 import torch
-from transformers import CLIPTokenizer
 from tqdm import tqdm
+from transformers import CLIPTokenizer
 
-from .convert_weights import load_all
-from .samplers.ddpm import DDPM
-from .samplers.ddim import DDIM
 from .model.autoencoder import Autoencoder
 from .model.clip import CLIP
 from .model.unet import UNet
+from .samplers.ddim import DDIM
+from .samplers.ddpm import DDPM
 
 
 class InferencePipeline:
@@ -24,6 +23,7 @@ class InferencePipeline:
         device: inference device
         idle_device: cpu
     """
+
     def __init__(
         self,
         vae: Autoencoder,
@@ -46,7 +46,7 @@ class InferencePipeline:
         generator = torch.Generator(device=device)
         generator.manual_seed(seed)
         return generator
-        
+
     def _load_model(self, model: torch.nn.Module) -> None:
         model.to(device=self.device)
         model.eval()
@@ -68,7 +68,7 @@ class InferencePipeline:
         images = images.to(device=self.idle_device, dtype=torch.uint8)
         images = torch.squeeze(images).numpy()
         return images
-    
+
     def _encode_context(self, prompt, negative_prompt=None, use_cfg=True):
         positive_tokens = self.tokenizer(
             prompt,
@@ -98,7 +98,6 @@ class InferencePipeline:
             context = torch.cat((context, uncond_context), dim=0)
         return context
 
-    
     def _denoise_latent(
         self,
         sampler,
@@ -108,25 +107,25 @@ class InferencePipeline:
         use_cfg: bool = True,
         guidance_scale: float = 7.5,
     ) -> torch.Tensor:
-        for i in tqdm(range(len(sampler.timesteps)), desc=f"Denoising", leave=True):
+        for i in tqdm(range(len(sampler.timesteps)), desc="Denoising", leave=True):
             # get current and prev timesteps
             timestep = sampler.timesteps[i]
             if i < len(sampler.timesteps) - 1:
                 prev_timestep = sampler.timesteps[i + 1]
             else:
-                prev_timestep = None # or -1?
+                prev_timestep = None  # or -1?
 
-            #if isinstance(sampler, Euler):
-                #latent_input=sampler.scale_model_input(
-                    #latents=latents,
-                    #timestep=timestep
-                #)
-            #else: 
-                #latent_input = latents # for DDPM and DDIM
+            # if isinstance(sampler, Euler):
+            # latent_input=sampler.scale_model_input(
+            # latents=latents,
+            # timestep=timestep
+            # )
+            # else:
+            # latent_input = latents # for DDPM and DDIM
             latent_input = latents
 
             # UNet time input
-            time_input = timestep.to(device=self.device).reshape(1) # .reshape(1) ??
+            time_input = timestep.to(device=self.device).reshape(1)  # .reshape(1) ??
             time_input = time_input.expand(latents.shape[0])
             if use_cfg:
                 latent_input = torch.cat((latent_input, latent_input), dim=0)
@@ -147,14 +146,14 @@ class InferencePipeline:
 
             # remove noise
             latents = sampler.step(
-                noise_pred=noise_pred, # (B, 4, 64, 64)
-                timestep=timestep, # (B,)
+                noise_pred=noise_pred,  # (B, 4, 64, 64)
+                timestep=timestep,  # (B,)
                 prev_timestep=prev_timestep,
                 latents=latents,
-                generator=generator
+                generator=generator,
             )
         return latents
-    
+
     # -----------------------------------------------------------------------------
     # Main generation methods
     # -----------------------------------------------------------------------------
@@ -184,8 +183,10 @@ class InferencePipeline:
         # Denoise latent
         latents = torch.randn((1, 4, 64, 64), generator=generator, device=self.device)
         self.sampler.set_timesteps(1.0)
-        #if isinstance(sampler, Euler):
-            #latents *= sampler.init_noise_scale.to(device=latents.device, dtype=latents.dtype)
+        # if isinstance(sampler, Euler):
+        # latents *= sampler.init_noise_scale.to(
+        # device=latents.device, dtype=latents.dtype
+        # )
 
         self._load_model(self.unet)
         latents = self._denoise_latent(
@@ -227,7 +228,7 @@ class InferencePipeline:
 
         if not 0 <= strength <= 1:
             raise ValueError("strength must be between 0 and 1")
-        
+
         generator = self._make_generator(seed=seed, device=self.device)
 
         use_cfg = guidance_scale != 1.0
@@ -258,11 +259,11 @@ class InferencePipeline:
         self.sampler.set_timesteps(strength)
 
         if len(self.sampler.timesteps) > 0:
-            noise = torch.randn(latents.shape, generator=generator, device=latents.device)
+            noise = torch.randn(
+                latents.shape, generator=generator, device=latents.device
+            )
             latents = self.sampler.add_noise(
-                latents=latents,
-                noise=noise,
-                timesteps=self.sampler.timesteps[0]
+                latents=latents, noise=noise, timesteps=self.sampler.timesteps[0]
             )
 
         self._load_model(self.unet)
