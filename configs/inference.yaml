@@ -7,6 +7,6 @@ strength: 0.8 # img2img only
 lora_path: data/weights/persian_lora.safetensors  # null for base model inference
 pretrained_path: data/weights/v1-5-pruned-emaonly.safetensors
 device: cuda
-sampler: ddpm
+sampler: ddim
 n_steps: 50
 guidance_scale: 7.5
