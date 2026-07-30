@@ -11,25 +11,20 @@ encoder, UNet, and samplers are all built by hand (no `diffusers`). I did not pr
 the base model from scratch; I instead loaded the checkpoint. I then LoRA-finetuned
 the base model into a Persian-miniature style adapter.
 
-<!-- TODO(you): 2–4 sentences in your own words. What's notable, why you built every
-component from scratch instead of using diffusers, and what you learned / what the repo
-is for (portfolio / understanding SD internals). This is the paragraph people read first
-after the images, so make it yours. -->
-
 ## Components
 
 - From-scratch base model: CLIP text encoder, VAE, and UNet (self/cross attention + FFN)
 - Samplers: DDPM and DDIM implemented from scratch, Euler sampler is in progress
 - LoRA: low rank adapter linear layers with training code
 - txt2img and img2img inference
-- Persian-miniature LoRA: trained on a scraped and cleaned images from Wikimedia Commons
+- Persian-miniature LoRA: trained on scraped and cleaned images from Wikimedia Commons
 
 ## Results
 
 ### How I ran experiments
 
 I wanted to test how varying configurations of LoRA layers affect the adapter's ability to
-learn the flat and decorative style of Persian miniatures while still refelecting the prompt.
+learn the flat and decorative style of Persian miniatures while still reflecting the prompt.
 To do so, I finetuned LoRA adapters varying three degrees of freedom between experiments: rank
 (`r`) (adapter capacity), alpha (the `alpha / r` scaling in the LoRA update), and target layers
 (which layers in the base model get an attached LoRA layer, e.g. q/k/v/out proj self-attention 
@@ -58,10 +53,10 @@ The per-experiment metrics are as follows (each row is an experiment):
 
 ### Winning configuration
 
-The winning configuration was r16, alpha 8, with LoRA layers injected into the self-attention cross-attention projections and the FFN linear layers. A few patterns showed up across the experiments. Small corrections (a low alpha relative to r) looked the best visually regardless of rank, while high capacity paired with a high correction (r32, alpha 32) was oversaturated and came out worst on every metric, with the lowest style adherence, the lowest prompt adherence, and the only val-loss ratio above 1.0. Regarding where to inject LoRA layers, only self-attention did not learn the style very well, which follows because cross-attention is where information flows between the image and the prompt. Cross-attention alone did learn the style well, and adding self-attention and the FFN on top of it performed better. On the metrics, the base model has close to the best prompt adherence and the lowest style adherence by a clear margin, which is the tradeoff I expected since the adapter pulls the outputs toward the Persian miniature style at a small cost to prompt adherence. r16 alpha 8 found the best balance of the two. It is one of the best on both metrics without being the single best on either, and it also looked the best visually, with r32 alpha 16 being a close contender. I did not pick the run with the highest style adherence because it sacrificed too much prompt adherence, while r16 alpha 8 was both better balanced and nicer to look at.
+The winning configuration was r16, alpha 8, with LoRA layers injected into the self-attention and cross-attention projections and the FFN linear layers. A few patterns showed up across the experiments. Small corrections (a low alpha relative to r) looked the best visually regardless of rank, while high capacity paired with a high correction (r32, alpha 32) was oversaturated and came out worst on every metric, with the lowest style adherence, the lowest prompt adherence, and the only val-loss ratio above 1.0. Regarding where to inject LoRA layers, only self-attention did not learn the style very well, which follows because cross-attention is where information flows between the image and the prompt. Cross-attention alone did learn the style well, and adding self-attention and the FFN on top of it performed better. On the metrics, the base model has close to the best prompt adherence and the lowest style adherence by a clear margin, which is the tradeoff I expected since the adapter pulls the outputs toward the Persian miniature style at a small cost to prompt adherence. r16 alpha 8 found the best balance of the two. It is one of the best on both metrics without being the single best on either, and it also looked the best visually, with r32 alpha 16 being a close contender. I did not pick the run with the highest style adherence because it sacrificed too much prompt adherence, while r16 alpha 8 was both better balanced and nicer to look at.
 
  
-**Base vs. LoRA** (LoRA r16 alpha8 self + cross + FFN, same prompt and seed):
+**Base vs. LoRA** (LoRA r16 alpha 8 self + cross + FFN, same prompt and seed):
 
 <p align="center">
   <img src="assets/base_vs_lora.png" width="60%" />
@@ -88,7 +83,7 @@ uv run python scripts/generate.py
 
 Generated images are written to `outputs/out<N>/` along with a snapshot of the config used.
 Set `lora_path: null` in `configs/inference.yaml` to run the base model instead of the LoRA.
-Set `input_image` at a file for img2img, leave as `null` for txt2img. See `notebooks/inference_demo.ipynb` for a walkthrough.
+Point `input_image` to a file path for img2img, leave as `null` for txt2img. See `notebooks/inference_demo.ipynb` for a walkthrough.
 
 ## Reproducing the LoRA adapter
 
@@ -124,7 +119,7 @@ stable-diffusion-rebuilt/
 │   ├── caption.py         # BLIP captioning and cleanup
 │   ├── train_lora.py      # train a LoRA run, reads configs/lora.yaml
 │   ├── evaluate_lora.py   # metrics and eval grid for a run
-│   ├── export_lora.py     # export a run's checkpoint as a .safetensor
+│   ├── export_lora.py     # export a run's checkpoint as a .safetensors
 │   ├── generate.py        # generate image with LoRA run or base model
 │   └── download_data.py   # download base SD1.5 and Persian LoRA weights from HF
 ├── configs/               # inference.yaml, lora.yaml, samplers.yaml
@@ -136,14 +131,14 @@ stable-diffusion-rebuilt/
 
 - LoRA weights: [`HarshaSrirangam/persian-miniature-lora`](https://huggingface.co/HarshaSrirangam/persian-miniature-lora)
 - Dataset: [`HarshaSrirangam/persian-miniatures`](https://huggingface.co/datasets/HarshaSrirangam/persian-miniatures)
-- Base model: [`stable-diffusion-v1-5/stable-diffusion-v1-5`](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) (`v1-5-pruned-emaonly.safetensors`)
 
 Images were scraped from [Wikimedia Commons](https://commons.wikimedia.org/wiki/Category:Persian_miniatures)
-(~6.8k scraped and filtered. ~5.2k kept, captioned, and published as parquet).
+(~6.8k scraped, filtered to ~5.2k, then captioned and published as parquet)
 
 ## Acknowledgements
 
 - Rombach et al., [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752) (Stable Diffusion)
+- Base model weights (`v1-5-pruned-emaonly.safetensors`): [`stable-diffusion-v1-5`](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5)
 - Hu et al., [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
 - Ho et al., [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239) (DDPM)
 - Song et al., [Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502) (DDIM)
