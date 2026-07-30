@@ -19,58 +19,54 @@ after the images, so make it yours. -->
 ## Components
 
 - From-scratch base model: CLIP text encoder, VAE, and UNet (self/cross attention + FFN)
-- Samplers: DDPM, DDIM implemented from scratch, Euler sampler is in progress
-- LoRA: low rank adapters with training code
-- txt2img and img2img inference.
-- Persian-miniature LoRA: trained on a scraped and cleaned Wikimedia dataset; weights and dataset published to Hugging Face Hub.
-
-<!-- TODO(you): trim/rewrite these bullets to match how you'd describe it. -->
+- Samplers: DDPM and DDIM implemented from scratch, Euler sampler is in progress
+- LoRA: low rank adapter linear layers with training code
+- txt2img and img2img inference
+- Persian-miniature LoRA: trained on a scraped and cleaned images from Wikimedia Commons
 
 ## Results
 
-<!-- TODO(you): 1–2 sentences — what you set out to test and the headline result (the adapter
-shifts base SD1.5 toward the Persian-miniature distribution). First person reads well here. -->
-
 ### How I ran experiments
 
-I finetuned LoRA adapters varying three degrees of freedom between experiments: rank (`r`) (adapter capacity),
-alpha (the `alpha / r` scaling in the LoRA update), and target layers (which layers in the base model get a LoRA layer attached, e.g. q/k/v/out proj self-attention layers). Each run is scored by `scripts/evaluate_lora.py`, which generates images 
-on a fixed prompt set and computes the three metrics below:
+I wanted to test how varying configurations of LoRA layers affect the adapter's ability to
+learn the flat and decorative style of Persian miniatures while still refelecting the prompt.
+To do so, I finetuned LoRA adapters varying three degrees of freedom between experiments: rank
+(`r`) (adapter capacity), alpha (the `alpha / r` scaling in the LoRA update), and target layers
+(which layers in the base model get an attached LoRA layer, e.g. q/k/v/out proj self-attention 
+layers). Each run is scored by `scripts/evaluate_lora.py`, which generates images on a fixed set
+of prompts and computes the three metrics below:
+  1. Val-loss ratio: LoRA / base model noise prediction MSE on held-out eval images (< 1.0 is better)
+  2. Prompt adherence: avg. cosine similarity between the CLIP embeddings of generated images and their eval prompts (higher = matches prompt better)
+  3. Style adherence: avg. cosine similarity between the CLIP embeddings of generated images and the mean CLIP embedding of the held-out eval images (higher = closer to the Persian-miniature style)
 
-| Run | r | α | Target layers | Val-loss ratio | Prompt adh. | Style adh. |
-|---|---|---|---|---|---|---|
-| self | 16 | 8 | self-attn | 0.9924 | 0.313 | 0.680 |
-| cross | 16 | 8 | cross | 0.9948 | 0.290 | 0.737 |
-| self+cross | 16 | 8 | self + cross | 0.9941 | 0.289 | 0.725 |
-| self+cross | 16 | 16 | self + cross | 0.9984 | 0.290 | 0.710 |
-| **self+cross+FFN** | **16** | **8** | **self + cross + FFN** | **0.9933** | **0.303** | **0.747** |
-| self | 32 | 16 | self-attn | 0.9934 | 0.304 | 0.734 |
-| cross | 32 | 16 | cross | 0.9961 | 0.278 | 0.719 |
-| self+cross | 32 | 16 | self + cross | 0.9970 | 0.278 | 0.757 |
-| self+cross | 32 | 32 | self + cross | 1.0072 | 0.267 | 0.630 |
-| self+cross+FFN | 32 | 16 | self + cross + FFN | 0.9981 | 0.284 | 0.738 |
+The per-experiment metrics are as follows (each row is an experiment):
 
-<!-- TODO(you): one row per run in your sweep — fill r / α / targets and the numbers from each
-runs/<run>/eval/metrics.json. Bold the winning row. Add/remove rows to match your actual runs.
-Metric definitions:
-  - Val-loss ratio  = LoRA / base noise-prediction MSE on held-out eval images (< 1.0 is better)
-  - Prompt adherence = generated image ↔ prompt CLIP similarity (photo-biased, lower for stylized)
-  - Style adherence  = generated image ↔ eval-set style-centroid CLIP similarity (higher = more in-style)
-The CLIP metrics are comparative across runs, not absolute. -->
+| r | α | Target layers | Val-loss ratio | Prompt adh. | Style adh. |
+|---|---|---|---|---|---|
+| — | — | base (no adapter) | 1.0000 | 0.312 | 0.545 |
+| 16 | 8 | self-attn | 0.9924 | 0.313 | 0.680 |
+| 16 | 8 | cross-attn | 0.9948 | 0.290 | 0.737 |
+| 16 | 8 | self + cross | 0.9941 | 0.289 | 0.725 |
+| 16 | 16 | self + cross | 0.9984 | 0.290 | 0.710 |
+| **16** | **8** | **self + cross + FFN** | **0.9933** | **0.303** | **0.747** |
+| 32 | 16 | self-attn | 0.9934 | 0.304 | 0.734 |
+| 32 | 16 | cross-attn | 0.9961 | 0.278 | 0.719 |
+| 32 | 16 | self + cross | 0.9970 | 0.278 | 0.757 |
+| 32 | 32 | self + cross | 1.0072 | 0.267 | 0.630 |
+| 32 | 16 | self + cross + FFN | 0.9981 | 0.284 | 0.738 |
+
 
 ### Winning configuration
 
-<!-- TODO(you): state the winner (r = 16, alpha = 8, targets = self + cross + FFN) and why it won —
-best style adherence without wrecking prompt adherence, lowest val-loss ratio, best eval grids.
-Optional "what I learned" beat: the low-alpha divergence I hit (Adam pushing raw weights large in
-bf16) and the gradient-clipping fix.
-NOTE: committed configs/lora.yaml is r16 / alpha16 / self+cross (no FFN) — NOT the winning run.
-Reconcile these before documenting. -->
+The winning configuration was r16, alpha 8, with LoRA layers injected into the self-attention cross-attention projections and the FFN linear layers. A few patterns showed up across the experiments. Small corrections (a low alpha relative to r) looked the best visually regardless of rank, while high capacity paired with a high correction (r32, alpha 32) was oversaturated and came out worst on every metric, with the lowest style adherence, the lowest prompt adherence, and the only val-loss ratio above 1.0. Regarding where to inject LoRA layers, only self-attention did not learn the style very well, which follows because cross-attention is where information flows between the image and the prompt. Cross-attention alone did learn the style well, and adding self-attention and the FFN on top of it performed better. On the metrics, the base model has close to the best prompt adherence and the lowest style adherence by a clear margin, which is the tradeoff I expected since the adapter pulls the outputs toward the Persian miniature style at a small cost to prompt adherence. r16 alpha 8 found the best balance of the two. It is one of the best on both metrics without being the single best on either, and it also looked the best visually, with r32 alpha 16 being a close contender. I did not pick the run with the highest style adherence because it sacrificed too much prompt adherence, while r16 alpha 8 was both better balanced and nicer to look at.
 
-**Base vs. LoRA** (same prompt and seed):
+ 
+**Base vs. LoRA** (LoRA r16 alpha8 self + cross + FFN, same prompt and seed):
 
 <p align="center">
   <img src="assets/base_vs_lora.png" width="60%" />
+  <br>
+  <sub>prompt: "a horse standing in a meadow", seed 1</sub>
 </p>
 
 ## Quickstart
@@ -91,84 +87,69 @@ uv run python scripts/generate.py
 ```
 
 Generated images are written to `outputs/out<N>/` along with a snapshot of the config used.
-Set `lora_path: null` in `configs/inference.yaml` to run the base model instead of the LoRA,
-or point `input_image` at a file for img2img. See `notebooks/inference_demo.ipynb` for a
-notebook walkthrough.
+Set `lora_path: null` in `configs/inference.yaml` to run the base model instead of the LoRA.
+Set `input_image` at a file for img2img, leave as `null` for txt2img. See `notebooks/inference_demo.ipynb` for a walkthrough.
 
-## How it works
-
-<!-- TODO(you): a short tour of the pipeline in your own words — how text → CLIP embedding →
-UNet denoising in latent space → VAE decode fits together, and where LoRA is injected. This is
-where the "from scratch" work pays off, so explain what you actually built. A small architecture
-diagram helps if you want one. Good place to mention the divergence/gradient-clipping story too. -->
-
-## Reproducing the LoRA
+## Reproducing the LoRA adapter
 
 ```bash
-# build the dataset (scrape → filter → caption), or pull the published parquet dataset
+# build the dataset (scrape, filter, caption), or download the published parquet dataset from HuggingFace
 #   see notebooks/build_dataset.ipynb  (GPU recommended for captioning)
 
-# train a LoRA run (reads configs/lora.yaml, writes to runs/<name>/)
+# train a LoRA run (edit configs/lora.yaml, writes to runs/<name>/)
 uv run python scripts/train_lora.py
 
-# evaluate a run (metrics + eval grid → runs/<run>/eval/)
+# evaluate a run (metrics + eval grid, writes to runs/<run>/eval/)
 uv run python scripts/evaluate_lora.py --run <run_name>
 
-# export a run's checkpoint into a portable, self-describing .safetensors
+# export a run's checkpoint
 uv run python scripts/export_lora.py --run <run_name> --out persian_lora.safetensors
 ```
 
-<!-- TODO(you): note the winning config (r / alpha / target layers) and anything you'd want a
-reader to know about the sweep. -->
-
-The dataset-authoring scripts (`scrape.py`, `filter_persian.py`, `caption.py`) live in `scripts/`
-and are orchestrated by `notebooks/build_dataset.ipynb`.
-
-## Repository structure
+## Repo structure
 
 ```
 stable-diffusion-rebuilt/
 ├── src/sdrebuilt/
 │   ├── model/             # from-scratch VAE, CLIP text encoder, UNet
 │   ├── samplers/          # DDPM, DDIM (Euler in progress)
-│   ├── lora/              # LoRA layers + inject/enable/disable/merge utility functions
+│   ├── lora/              # LoRA layers and utility functions
 │   ├── inference.py       # txt2img / img2img pipeline
 │   ├── trainer.py         # LoRA training loop
-│   ├── dataset.py         # dataset + latent/text-embedding precompute
-│   └── convert_weights.py # load SD1.5 .safetensors into the from-scratch modules
+│   ├── dataset.py         # image/caption dataset
+│   └── convert_weights.py # load SD1.5 checkpoint into the custom SD modules in model/
 ├── scripts/
 │   ├── scrape.py          # scrape Persian miniatures from Wikimedia Commons
-│   ├── filter_persian.py  # CLIP + saturation junk filter
-│   ├── caption.py         # BLIP captioning + cleanup
-│   ├── train_lora.py      # train a LoRA run from configs/lora.yaml
-│   ├── evaluate_lora.py   # metrics + eval grid for a run
-│   ├── export_lora.py     # bundle a run's checkpoint into a portable .safetensors
-│   ├── generate.py        # config-driven inference (configs/inference.yaml)
-│   └── download_data.py   # fetch base SD1.5 + Persian LoRA weights from HF
+│   ├── filter_persian.py  # junk filtering
+│   ├── caption.py         # BLIP captioning and cleanup
+│   ├── train_lora.py      # train a LoRA run, reads configs/lora.yaml
+│   ├── evaluate_lora.py   # metrics and eval grid for a run
+│   ├── export_lora.py     # export a run's checkpoint as a .safetensor
+│   ├── generate.py        # generate image with LoRA run or base model
+│   └── download_data.py   # download base SD1.5 and Persian LoRA weights from HF
 ├── configs/               # inference.yaml, lora.yaml, samplers.yaml
-├── notebooks/             # build_dataset, train, inference_demo, lora_inference
-└── assets/                # sample generations
+├── notebooks/             # build_dataset, train, inference_demo
+└── assets/                # README images
 ```
 
 ## Data and weights
 
-- **LoRA weights:** [`HarshaSrirangam/persian-miniature-lora`](https://huggingface.co/HarshaSrirangam/persian-miniature-lora)
-- **Dataset:** [`HarshaSrirangam/persian-miniatures`](https://huggingface.co/datasets/HarshaSrirangam/persian-miniatures)
-- **Base model:** [`stable-diffusion-v1-5/stable-diffusion-v1-5`](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) (`v1-5-pruned-emaonly.safetensors`)
+- LoRA weights: [`HarshaSrirangam/persian-miniature-lora`](https://huggingface.co/HarshaSrirangam/persian-miniature-lora)
+- Dataset: [`HarshaSrirangam/persian-miniatures`](https://huggingface.co/datasets/HarshaSrirangam/persian-miniatures)
+- Base model: [`stable-diffusion-v1-5/stable-diffusion-v1-5`](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) (`v1-5-pruned-emaonly.safetensors`)
 
-Source images were scraped from [Wikimedia Commons](https://commons.wikimedia.org/wiki/Category:Persian_miniatures)
-(~6.8k scraped → CLIP + saturation filter → ~5.2k kept → captioned and published as parquet).
-<!-- TODO(you): note the image license / attribution for the dataset. -->
+Images were scraped from [Wikimedia Commons](https://commons.wikimedia.org/wiki/Category:Persian_miniatures)
+(~6.8k scraped and filtered. ~5.2k kept, captioned, and published as parquet).
 
 ## Acknowledgements
 
-<!-- TODO(you): references / credits, e.g.:
-  - Rombach et al., High-Resolution Image Synthesis with Latent Diffusion Models (SD)
-  - Hu et al., LoRA: Low-Rank Adaptation of Large Language Models
-  - Ho et al., DDPM; Song et al., DDIM
-  - any tutorials that guided you
--->
+- Rombach et al., [High-Resolution Image Synthesis with Latent Diffusion Models](https://arxiv.org/abs/2112.10752) (Stable Diffusion)
+- Hu et al., [LoRA: Low-Rank Adaptation of Large Language Models](https://arxiv.org/abs/2106.09685)
+- Ho et al., [Denoising Diffusion Probabilistic Models](https://arxiv.org/abs/2006.11239) (DDPM)
+- Song et al., [Denoising Diffusion Implicit Models](https://arxiv.org/abs/2010.02502) (DDIM)
+- Radford et al., [Learning Transferable Visual Models From Natural Language Supervision](https://arxiv.org/abs/2103.00020) (CLIP)
+- Li et al., [BLIP: Bootstrapping Language-Image Pre-training](https://arxiv.org/abs/2201.12086) (used to caption the dataset)
 
 ## License
 
-<!-- TODO(you): add a license (MIT is common for repos like this) and a LICENSE file. -->
+[MIT](LICENSE)
