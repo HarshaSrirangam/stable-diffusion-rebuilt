@@ -21,7 +21,7 @@ class Trainer:
         unet: UNet with only intended trainable params active
         dataloader: DataLoader of pre-encoded batched image-caption pairs
         optimizer: Adam or AdamW
-        sampler: DDPM sampler
+        sampler: noise sampler
         device: training device
         n_epochs: number of training epochs
         log_interval: number of batches between logging loss
@@ -52,7 +52,7 @@ class Trainer:
 
     def train(self):
         """
-        Trains UNet for n_epochs. Uses bf16 autocast.
+        Trains UNet for n_epochs. Uses bf16 autocast and gradient clipping.
         """
         self.unet.train()
         for epoch in range(self.n_epochs):
