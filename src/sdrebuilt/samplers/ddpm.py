@@ -53,10 +53,7 @@ class DDPM:
         self.timesteps = self.full_timesteps[start_idx:]
 
     def add_noise(
-        self,
-        latents: torch.Tensor,
-        noise: torch.Tensor,
-        timesteps: torch.Tensor = None
+        self, latents: torch.Tensor, noise: torch.Tensor, timesteps: torch.Tensor = None
     ) -> torch.Tensor:
         """
         Adds Gaussian noise to latent at given timestep using
@@ -90,9 +87,7 @@ class DDPM:
                 timesteps = timesteps.expand(latents.shape[0])  # (B,)
 
         # alpha_bar_ts -> (B,)
-        alpha_bars = self.alpha_bars.to(
-            device=latents.device, dtype=latents.dtype
-        )
+        alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype)
         alpha_bar_ts = alpha_bars[timesteps]
 
         # (B,) -> (B, 1, 1, 1) for broadcasting
@@ -134,7 +129,7 @@ class DDPM:
                 prev_timestep, device=latents.device, dtype=torch.long
             )
             if t_prev.ndim == 0:
-                t_prev = t_prev.expand(latents.shape[0]) # int -> (B,)
+                t_prev = t_prev.expand(latents.shape[0])  # int -> (B,)
 
         alpha_bars = self.alpha_bars.to(
             device=latents.device, dtype=latents.dtype

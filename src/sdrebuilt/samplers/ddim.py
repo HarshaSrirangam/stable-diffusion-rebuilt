@@ -91,9 +91,7 @@ class DDIM:
                 timesteps = timesteps.expand(latents.shape[0])  # (B,)
 
         # alpha_bar_ts -> (B,)
-        alpha_bars = self.alpha_bars.to(
-            device=latents.device, dtype=latents.dtype
-        )
+        alpha_bars = self.alpha_bars.to(device=latents.device, dtype=latents.dtype)
         alpha_bar_ts = alpha_bars[timesteps]
 
         # (B,) -> (B, 1, 1, 1) for broadcasting
@@ -135,7 +133,7 @@ class DDIM:
                 prev_timestep, device=latents.device, dtype=torch.long
             )
             if t_prev.ndim == 0:
-                t_prev = t_prev.expand(latents.shape[0]) # int -> (B,)
+                t_prev = t_prev.expand(latents.shape[0])  # int -> (B,)
 
         alpha_bars = self.alpha_bars.to(
             device=latents.device, dtype=latents.dtype
