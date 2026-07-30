@@ -1,10 +1,8 @@
 """
-Generate images with base model or with LoRA adapters.
-
-Reads configs/inference.yaml, builds the inference pipeline (optionally injecting
-lora adapters from a specific run), and runs txt2img or img2img based on whether
-an input image path is provided in the config. Writes output.png (and input.png for
-img2img) plus a config snapshot to runs/<run>/generated_images/<name>/.
+Generate images with base model or with LoRA adapters. Reads configs/inference.yaml
+and runs txt2img or img2img based on whether an input image path is provided
+in the config. Writes output.png (and input.png for img2img) plus a snapshot
+of the inference config to the resolved output directory.
 
 Usage:
     uv run python scripts/generate.py
@@ -23,6 +21,7 @@ import numpy as np
 import torch
 import yaml
 from PIL import Image
+from safetensors.torch import load_file, safe_open
 from transformers import CLIPTokenizer
 from transformers.utils import logging as hf_logging
 
@@ -52,25 +51,18 @@ def main():
         config = yaml.safe_load(f)
 
     # create output directory
-    run_name = config["run"]
-    lora_enabled = run_name is not None
-    if lora_enabled:
-        run_dir = ROOT / "runs" / run_name
-    else:
-        run_dir = ROOT / "base_model"
-    (run_dir / "generated_images").mkdir(parents=True, exist_ok=True)
-    output_dir = run_dir / "generated_images" / config["name"]
-    if output_dir.exists():
-        raise FileExistsError(f"output '{config['name']}' already exists")
-    output_dir.mkdir(parents=True)
-    # freeze config
-    shutil.copy(config_path, output_dir / "inference_config.yaml")
+    outputs = ROOT / "outputs"
+    outputs.mkdir(exist_ok=True)
+    used = [int(d.name[3:]) for d in outputs.glob("out*") if d.name[3:].isdigit()]
+    out_dir = outputs / f"out{max(used, default=0) + 1}"
+    out_dir.mkdir()
+    shutil.copy(config_path, out_dir / "inference_config.yaml")
 
     # seed
     torch.manual_seed(config["seed"])
 
     # load models (keep on cpu for now)
-    log("Loading model")
+    log("Loading base model")
     device = config["device"]
     vae = Autoencoder().eval()
     clip = CLIP().eval()
@@ -78,38 +70,33 @@ def main():
     load_all(ROOT / config["pretrained_path"], vae=vae, clip=clip, unet=unet)
 
     # retrieve lora config and inject layers (if lora enabled)
-    if lora_enabled:
+    if config["lora_path"]:
+        # load persian lora weights and metadata
         log("Loading LoRA adapter")
-        lora_cfg_path = run_dir / "training_config.yaml"
-        with open(lora_cfg_path, "r") as f:
-            lora_config = yaml.safe_load(f)
+        lora_path = ROOT / config["lora_path"]
+        lora_state = load_file(lora_path)
+        with safe_open(lora_path, framework="pt") as f:
+            meta = f.metadata()
+        r, alpha = int(meta["r"]), int(meta["alpha"])
+        targets = meta["targets"].split(",")
+        # inject layers
         inject_lora(
             model=unet,
-            target_names=lora_config["targets"]["layers"],
-            r=lora_config["r"],
-            alpha=lora_config["alpha"],
+            target_names=targets,
+            r=r,
+            alpha=alpha,
         )
-        # load checkpoint
-        ckpt_dir = run_dir / "checkpoints"
-        if config["checkpoint"] == "last":
-            ckpts = ckpt_dir.glob("checkpoint-*.pt")
-            lora_ckpt_path = max(ckpts, key=lambda p: int(p.stem.split("-")[1]))
-        else:
-            lora_ckpt_path = ckpt_dir / f"checkpoint-{config['checkpoint']}.pt"
-        lora_state = torch.load(lora_ckpt_path, map_location="cpu")
         unet.load_state_dict(lora_state, strict=False)
 
     # sampler
     SAMPLERS = {"ddpm": DDPM, "ddim": DDIM}
-    sampler = SAMPLERS[config["sampler"]["name"]](
-        n_step_inf=config["sampler"]["n_step_inf"]
-    )
+    sampler = SAMPLERS[config["sampler"]](n_step_inf=config["n_steps"])
 
     # tokenizer
     tokenizer = CLIPTokenizer.from_pretrained("openai/clip-vit-large-patch14")
 
     # InferencePipeline
-    log("Generating")
+    log("Generating image")
     inference_pipeline = InferencePipeline(
         vae=vae,
         clip=clip,
@@ -119,7 +106,7 @@ def main():
         device=device,
         idle_device="cpu",
     )
-    if config["input_image_path"] is None:  # txt2img
+    if config["input_image"] is None:  # txt2img
         generated_image = inference_pipeline.txt_2_img(
             prompt=config["prompt"],
             negative_prompt=config["negative_prompt"],
@@ -127,11 +114,10 @@ def main():
             seed=config["seed"],
         )
     else:  # img2img
-        input_image = Image.open(ROOT / config["input_image_path"])
+        input_image = Image.open(ROOT / config["input_image"])
         input_image = input_image.convert("RGB").resize((512, 512))
         input_image_arr = np.array(input_image, dtype=np.uint8)
 
-        # turn into raise errors
         if input_image_arr.shape != (512, 512, 3):
             raise ValueError("must be (512, 512, 3)")
         if input_image_arr.dtype != np.uint8:
@@ -150,10 +136,11 @@ def main():
     log("Saving output")
     generated_image = Image.fromarray(generated_image)
 
-    # save outputs
-    generated_image.save(output_dir / "output.png")
-    if config["input_image_path"] is not None:
-        input_image.save(output_dir / "input.png")
+    # save outputs to out dir
+    generated_image.save(out_dir / "output.png")
+    if config["input_image"] is not None:
+        input_image.save(out_dir / "input.png")
+    log(f"Saved to {out_dir}")
 
 
 if __name__ == "__main__":
