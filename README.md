@@ -45,7 +45,7 @@ of prompts and computes the three metrics below:
 
 The per-experiment metrics are as follows (each row is an experiment):
 
-| r | α | Target layers | Val-loss ratio | Prompt adh. | Style adh. |
+| r | α | Target layers | Validation-loss ratio | Prompt adherence | Style adherence |
 |---|---|---|---|---|---|
 | — | — | base (no adapter) | 1.0000 | 0.312 | 0.545 |
 | 16 | 8 | self-attn | 0.9924 | 0.313 | 0.680 |
