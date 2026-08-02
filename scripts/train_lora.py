@@ -25,12 +25,12 @@ import yaml
 from torch.utils.data import DataLoader, TensorDataset
 from transformers.utils import logging as hf_logging
 
-from sdrebuilt.convert_weights import load_unet
-from sdrebuilt.dataset import precompute
-from sdrebuilt.lora.utils import inject_lora
-from sdrebuilt.model.unet import UNet
-from sdrebuilt.samplers.ddpm import DDPM
-from sdrebuilt.trainer import Trainer
+from convert_weights import load_unet
+from dataset import precompute
+from lora.utils import inject_lora
+from stablediffusion.unet import UNet
+from samplers.ddpm import DDPM
+from trainer import Trainer
 
 hf_logging.set_verbosity_error()
 datasets.logging.set_verbosity_error()

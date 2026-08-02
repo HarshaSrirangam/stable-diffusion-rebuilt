@@ -25,14 +25,14 @@ from safetensors.torch import load_file, safe_open
 from transformers import CLIPTokenizer
 from transformers.utils import logging as hf_logging
 
-from sdrebuilt.convert_weights import load_all
-from sdrebuilt.inference import InferencePipeline
-from sdrebuilt.lora.utils import inject_lora
-from sdrebuilt.model.autoencoder import Autoencoder
-from sdrebuilt.model.clip import CLIP
-from sdrebuilt.model.unet import UNet
-from sdrebuilt.samplers.ddim import DDIM
-from sdrebuilt.samplers.ddpm import DDPM
+from convert_weights import load_all
+from inference import InferencePipeline
+from lora.utils import inject_lora
+from stablediffusion.autoencoder import Autoencoder
+from stablediffusion.clip import CLIP
+from stablediffusion.unet import UNet
+from samplers.ddim import DDIM
+from samplers.ddpm import DDPM
 
 hf_logging.set_verbosity_error()
 huggingface_hub.logging.set_verbosity_error()

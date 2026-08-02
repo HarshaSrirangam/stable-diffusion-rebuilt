@@ -51,15 +51,15 @@ from torch.utils.data import DataLoader, TensorDataset
 from transformers import CLIPModel, CLIPProcessor, CLIPTokenizer
 from transformers.utils import logging as hf_logging
 
-from sdrebuilt.convert_weights import load_all
-from sdrebuilt.dataset import precompute
-from sdrebuilt.inference import InferencePipeline
-from sdrebuilt.lora.utils import disable_lora, enable_lora, inject_lora
-from sdrebuilt.model.autoencoder import Autoencoder
-from sdrebuilt.model.clip import CLIP
-from sdrebuilt.model.unet import UNet
-from sdrebuilt.samplers.ddim import DDIM
-from sdrebuilt.samplers.ddpm import DDPM
+from convert_weights import load_all
+from dataset import precompute
+from inference import InferencePipeline
+from lora.utils import disable_lora, enable_lora, inject_lora
+from stablediffusion.autoencoder import Autoencoder
+from stablediffusion.clip import CLIP
+from stablediffusion.unet import UNet
+from samplers.ddim import DDIM
+from samplers.ddpm import DDPM
 
 datasets.logging.set_verbosity_error()
 datasets.disable_progress_bars()
