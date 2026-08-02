@@ -8,8 +8,8 @@ from torch.amp import autocast
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from .model.unet import UNet
-from .samplers.ddpm import DDPM
+from stablediffusion.unet import UNet
+from samplers.ddpm import DDPM
 
 
 class Trainer:

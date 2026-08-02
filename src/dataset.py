@@ -7,9 +7,9 @@ from torchvision import transforms
 from tqdm import tqdm
 from transformers import CLIPTokenizer
 
-from .convert_weights import load_clip, load_vae
-from .model.autoencoder import Autoencoder
-from .model.clip import CLIP
+from convert_weights import load_clip, load_vae
+from stablediffusion.autoencoder import Autoencoder
+from stablediffusion.clip import CLIP
 
 
 class ImageCaptionDataset(Dataset):

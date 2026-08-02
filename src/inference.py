@@ -3,11 +3,11 @@ import torch
 from tqdm import tqdm
 from transformers import CLIPTokenizer
 
-from .model.autoencoder import Autoencoder
-from .model.clip import CLIP
-from .model.unet import UNet
-from .samplers.ddim import DDIM
-from .samplers.ddpm import DDPM
+from stablediffusion.autoencoder import Autoencoder
+from stablediffusion.clip import CLIP
+from stablediffusion.unet import UNet
+from samplers.ddim import DDIM
+from samplers.ddpm import DDPM
 
 
 class InferencePipeline:
